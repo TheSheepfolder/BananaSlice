@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Canvas as FabricCanvas, Image as FabricImage, Point, Rect, Polyline } from 'fabric';
 import { useCanvasStore } from '../store/canvasStore';
 import { useToolStore } from '../store/toolStore';
+import { useSelectionStore } from '../store/selectionStore';
 
 export function Canvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -18,9 +19,9 @@ export function Canvas() {
         setPan
     } = useCanvasStore();
 
-    const {
-        activeTool
-    } = useToolStore();
+    const { activeTool } = useToolStore();
+
+    const { setActiveSelection } = useSelectionStore();
 
     // Initialize Fabric.js canvas
     useEffect(() => {
@@ -262,6 +263,9 @@ export function Canvas() {
                     fill: 'rgba(0, 120, 255, 0.1)',
                 });
                 canvas.renderAll();
+
+                // Sync selection to store for API processing
+                setActiveSelection(activeSelectionRef.current);
             }
 
             isDrawing = false;

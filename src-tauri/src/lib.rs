@@ -1,9 +1,14 @@
 // BananaSlice - Generative Fill Desktop App
 // Rust backend for Tauri application
 
+mod api;
 mod commands;
+mod keystore;
 
-use commands::{get_app_info, open_image, save_image};
+use commands::{
+    get_app_info, open_image, save_image,
+    generate_fill, set_api_key, has_api_key, delete_api_key
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,7 +28,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_app_info,
             open_image,
-            save_image
+            save_image,
+            generate_fill,
+            set_api_key,
+            has_api_key,
+            delete_api_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

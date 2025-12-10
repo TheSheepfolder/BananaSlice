@@ -2,3 +2,4 @@
 export { useToolStore } from './toolStore';
 export { useCanvasStore } from './canvasStore';
 export { useSettingsStore } from './settingsStore';
+export { useSelectionStore } from './selectionStore';

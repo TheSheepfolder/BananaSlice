@@ -40,19 +40,12 @@ export interface Layer {
     order: number;
 }
 
-// Generation settings for AI API
-export interface GenerationSettings {
+// Generation request for Nano Banana API
+export interface GenerationRequest {
     model: AIModel;
     prompt: string;
-    strength: number;
-    guidance: number;
-}
-
-// Brush settings
-export interface BrushSettings {
-    size: number;
-    hardness: number;
-    feather: number;
+    imageBase64: string;
+    maskBase64: string;
 }
 
 // Canvas state
@@ -74,7 +67,5 @@ export interface ProjectFile {
     layers: Layer[];
     settings: {
         lastPrompt?: string;
-        defaultStrength: number;
-        defaultGuidance: number;
     };
 }

@@ -130,7 +130,7 @@ function App() {
                 {/* Right Panel */}
                 <aside className="panel right-panel">
                     <div className="panel-section">
-                        <h3 className="panel-title">AI Generation</h3>
+                        <h3 className="panel-title">Generative Fill</h3>
                         <div className="panel-content">
                             <label className="input-label">
                                 Prompt
@@ -144,20 +144,10 @@ function App() {
                             <div className="model-selector">
                                 <label className="input-label">Model</label>
                                 <select className="select-input">
-                                    <option value="nano-banana-pro">Nano Banana Pro (4K)</option>
+                                    <option value="nano-banana-pro">Nano Banana Pro</option>
                                     <option value="nano-banana">Nano Banana (Fast)</option>
                                 </select>
                             </div>
-
-                            <label className="input-label">
-                                Strength
-                                <input type="range" min="0" max="100" defaultValue="75" className="slider" />
-                            </label>
-
-                            <label className="input-label">
-                                Guidance
-                                <input type="range" min="1" max="20" defaultValue="7" className="slider" />
-                            </label>
 
                             <button className="generate-btn" disabled={!baseImage}>
                                 Generate Fill
