@@ -16,7 +16,8 @@ export function Canvas() {
         panY,
         setCursorPosition,
         setZoom,
-        setPan
+        setPan,
+        setImageTransform
     } = useCanvasStore();
 
     const { activeTool } = useToolStore();
@@ -191,16 +192,26 @@ export function Canvas() {
             }
         };
 
+        // Helper to get pointer coordinates in canvas object space (accounting for zoom/pan)
+        const getCanvasPointer = (e: any): { x: number; y: number } | null => {
+            if (!e.e) return null;
+            // Use getScenePoint to get coordinates in the canvas object coordinate system
+            const pointer = canvas.getScenePoint(e.e);
+            return { x: pointer.x, y: pointer.y };
+        };
+
         const handleMouseDown = (e: any) => {
             if (activeTool !== 'rectangle' && activeTool !== 'lasso') return;
-            if (!e.pointer) return;
+
+            const pointer = getCanvasPointer(e);
+            if (!pointer) return;
 
             // CRITICAL: Clear any existing selection before starting new one
             clearSelection();
 
             isDrawing = true;
-            startX = e.pointer.x;
-            startY = e.pointer.y;
+            startX = pointer.x;
+            startY = pointer.y;
 
             if (activeTool === 'lasso') {
                 lassoPoints = [new Point(startX, startY)];
@@ -208,7 +219,10 @@ export function Canvas() {
         };
 
         const handleMouseMove = (e: any) => {
-            if (!isDrawing || !e.pointer) return;
+            if (!isDrawing) return;
+
+            const pointer = getCanvasPointer(e);
+            if (!pointer) return;
 
             if (activeTool === 'rectangle') {
                 // Remove temporary preview
@@ -216,12 +230,12 @@ export function Canvas() {
                     canvas.remove(activeSelectionRef.current);
                 }
 
-                const width = e.pointer.x - startX;
-                const height = e.pointer.y - startY;
+                const width = pointer.x - startX;
+                const height = pointer.y - startY;
 
                 activeSelectionRef.current = new Rect({
-                    left: width >= 0 ? startX : e.pointer.x,
-                    top: height >= 0 ? startY : e.pointer.y,
+                    left: width >= 0 ? startX : pointer.x,
+                    top: height >= 0 ? startY : pointer.y,
                     width: Math.abs(width),
                     height: Math.abs(height),
                     fill: '',
@@ -235,7 +249,7 @@ export function Canvas() {
                 canvas.add(activeSelectionRef.current);
                 canvas.renderAll();
             } else if (activeTool === 'lasso') {
-                lassoPoints.push(new Point(e.pointer.x, e.pointer.y));
+                lassoPoints.push(new Point(pointer.x, pointer.y));
 
                 // Remove temporary preview
                 if (activeSelectionRef.current) {
@@ -327,12 +341,20 @@ export function Canvas() {
                 canvas.add(img);
                 canvas.renderAll();
 
+                // Store the image transform so selections can be converted to image coordinates
+                setImageTransform({
+                    left: centerX,
+                    top: centerY,
+                    scaleX: scale,
+                    scaleY: scale,
+                });
+
                 setZoom(100);
             })
             .catch((err) => {
                 console.error('Failed to load image:', err);
             });
-    }, [baseImage, setZoom]);
+    }, [baseImage, setZoom, setImageTransform]);
 
     // Apply zoom changes from store
     useEffect(() => {

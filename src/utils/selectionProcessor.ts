@@ -7,6 +7,15 @@ export interface SelectionBounds {
     height: number;
 }
 
+export interface ImageTransform {
+    // Position of image on canvas
+    left: number;
+    top: number;
+    // Scale applied to image
+    scaleX: number;
+    scaleY: number;
+}
+
 export interface ProcessedSelection {
     bounds: SelectionBounds;
     croppedImageBase64: string;
@@ -15,8 +24,9 @@ export interface ProcessedSelection {
 
 /**
  * Get bounding box from a Fabric.js selection object
+ * Returns coordinates in CANVAS space
  */
-export function getSelectionBounds(selectionObject: any): SelectionBounds | null {
+export function getSelectionBoundsCanvas(selectionObject: any): SelectionBounds | null {
     if (!selectionObject) return null;
 
     // Get the bounding rect of the selection
@@ -27,6 +37,30 @@ export function getSelectionBounds(selectionObject: any): SelectionBounds | null
         y: Math.floor(boundingRect.top),
         width: Math.ceil(boundingRect.width),
         height: Math.ceil(boundingRect.height),
+    };
+}
+
+/**
+ * Transform selection bounds from canvas space to original image space
+ */
+export function transformToImageSpace(
+    canvasBounds: SelectionBounds,
+    imageTransform: ImageTransform,
+    imageWidth: number,
+    imageHeight: number
+): SelectionBounds {
+    // Subtract image position, then divide by scale
+    const x = Math.floor((canvasBounds.x - imageTransform.left) / imageTransform.scaleX);
+    const y = Math.floor((canvasBounds.y - imageTransform.top) / imageTransform.scaleY);
+    const width = Math.ceil(canvasBounds.width / imageTransform.scaleX);
+    const height = Math.ceil(canvasBounds.height / imageTransform.scaleY);
+
+    // Clamp to image bounds
+    return {
+        x: Math.max(0, Math.min(x, imageWidth - 1)),
+        y: Math.max(0, Math.min(y, imageHeight - 1)),
+        width: Math.min(width, imageWidth - x),
+        height: Math.min(height, imageHeight - y),
     };
 }
 
@@ -76,11 +110,10 @@ export async function cropImageToBounds(
 }
 
 /**
- * Create a binary mask from a Fabric.js selection object
+ * Create a binary mask from bounds
  * White (255) = selected area, Black (0) = keep area
  */
-export async function createMaskFromSelection(
-    selectionObject: any,
+export async function createMaskFromBounds(
     bounds: SelectionBounds
 ): Promise<string> {
     return new Promise((resolve) => {
@@ -94,33 +127,9 @@ export async function createMaskFromSelection(
             return;
         }
 
-        // Fill with black (keep area)
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, bounds.width, bounds.height);
-
-        // Fill selection area with white (selected = inpaint area)
+        // For rectangle selection, entire mask is white (inpaint entire region)
         ctx.fillStyle = '#FFFFFF';
-
-        // Get the selection type and draw accordingly
-        const type = selectionObject.type;
-
-        if (type === 'rect') {
-            // Rectangle selection - fill entire mask with white since it IS the bounds
-            ctx.fillRect(0, 0, bounds.width, bounds.height);
-        } else if (type === 'polyline' || type === 'polygon') {
-            // Lasso selection - draw the polygon path
-            const points = selectionObject.points;
-            if (points && points.length > 0) {
-                ctx.beginPath();
-                // Offset points relative to bounds
-                ctx.moveTo(points[0].x - bounds.x, points[0].y - bounds.y);
-                for (let i = 1; i < points.length; i++) {
-                    ctx.lineTo(points[i].x - bounds.x, points[i].y - bounds.y);
-                }
-                ctx.closePath();
-                ctx.fill();
-            }
-        }
+        ctx.fillRect(0, 0, bounds.width, bounds.height);
 
         // Convert to base64 (strip data URL prefix)
         const dataUrl = canvas.toDataURL('image/png');
@@ -136,26 +145,46 @@ export async function createMaskFromSelection(
 export async function processSelectionForAPI(
     selectionObject: any,
     imageBase64: string,
-    imageFormat: string
+    imageFormat: string,
+    imageTransform: ImageTransform,
+    imageWidth: number,
+    imageHeight: number
 ): Promise<ProcessedSelection | null> {
-    // Get bounds
-    const bounds = getSelectionBounds(selectionObject);
-    if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
+    // Get canvas-space bounds
+    const canvasBounds = getSelectionBoundsCanvas(selectionObject);
+    if (!canvasBounds || canvasBounds.width <= 0 || canvasBounds.height <= 0) {
         return null;
     }
 
-    // Crop the source image
-    const croppedImageBase64 = await cropImageToBounds(imageBase64, bounds, imageFormat);
+    console.log('Canvas bounds:', canvasBounds);
+    console.log('Image transform:', imageTransform);
+    console.log('Image dimensions:', imageWidth, imageHeight);
 
-    // Create the mask
-    const maskBase64 = await createMaskFromSelection(
-        selectionObject,
-        bounds
+    // Transform to image space
+    const imageBounds = transformToImageSpace(
+        canvasBounds,
+        imageTransform,
+        imageWidth,
+        imageHeight
     );
 
+    console.log('Image bounds:', imageBounds);
+
+    if (imageBounds.width <= 0 || imageBounds.height <= 0) {
+        console.error('Selection is outside image bounds');
+        return null;
+    }
+
+    // Crop the source image using IMAGE coordinates
+    const croppedImageBase64 = await cropImageToBounds(imageBase64, imageBounds, imageFormat);
+
+    // Create the mask (simple white rectangle for now)
+    const maskBase64 = await createMaskFromBounds(imageBounds);
+
     return {
-        bounds,
+        bounds: imageBounds,
         croppedImageBase64,
         maskBase64,
     };
 }
+

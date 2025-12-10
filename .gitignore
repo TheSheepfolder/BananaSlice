@@ -31,6 +31,7 @@ dist-ssr
 
 # Testing
 coverage/
+debug_output/
 
 # OS metadata
 thumbs.db

@@ -15,6 +15,22 @@ export interface GenerateResponse {
     error: string | null;
 }
 
+export interface CompositeRequest {
+    base_image_base64: string;
+    patch_image_base64: string;
+    x: number;
+    y: number;
+    target_width: number;
+    target_height: number;
+    format: string;
+}
+
+export interface CompositeResponse {
+    success: boolean;
+    image_base64: string | null;
+    error: string | null;
+}
+
 /**
  * Generate fill for a selected region using Nano Banana API
  */
@@ -32,6 +48,31 @@ export async function generateFill(
     };
 
     return invoke<GenerateResponse>('generate_fill', { request });
+}
+
+/**
+ * Composite a generated patch back onto the base image
+ */
+export async function compositePatch(
+    baseImageBase64: string,
+    patchImageBase64: string,
+    x: number,
+    y: number,
+    targetWidth: number,
+    targetHeight: number,
+    format: string = 'png'
+): Promise<CompositeResponse> {
+    const request: CompositeRequest = {
+        base_image_base64: baseImageBase64,
+        patch_image_base64: patchImageBase64,
+        x,
+        y,
+        target_width: targetWidth,
+        target_height: targetHeight,
+        format,
+    };
+
+    return invoke<CompositeResponse>('composite_patch', { request });
 }
 
 /**

@@ -1,9 +1,13 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Canvas } from './components/Canvas';
+import { SettingsModal } from './components/SettingsModal';
 import { useCanvasStore } from './store/canvasStore';
 import { useToolStore } from './store/toolStore';
+import { useSelectionStore } from './store/selectionStore';
+import { generateFill, compositePatch, hasApiKey } from './api';
+import type { AIModel } from './types';
 import './styles/index.css';
 
 interface AppInfo {
@@ -16,6 +20,8 @@ function App() {
         baseImage,
         isLoading,
         loadImage,
+        updateImageData,
+        imageTransform,
         zoom,
         zoomIn,
         zoomOut,
@@ -23,10 +29,16 @@ function App() {
         cursorY
     } = useCanvasStore();
 
-    const {
-        activeTool,
-        setActiveTool
-    } = useToolStore();
+    const { activeTool, setActiveTool } = useToolStore();
+
+    const { activeSelection, processForAPI } = useSelectionStore();
+
+    // UI State
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [prompt, setPrompt] = useState('');
+    const [model, setModel] = useState<AIModel>('nano-banana-pro');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         invoke<AppInfo>('get_app_info').catch(console.error);
@@ -50,8 +62,89 @@ function App() {
         }
     };
 
+    const handleGenerate = async () => {
+        if (!baseImage || !activeSelection) {
+            setError('Please make a selection first');
+            return;
+        }
+
+        if (!prompt.trim()) {
+            setError('Please enter a prompt');
+            return;
+        }
+
+        // Check API key
+        const keyConfigured = await hasApiKey();
+        if (!keyConfigured) {
+            setError('Please configure your API key in Settings');
+            setSettingsOpen(true);
+            return;
+        }
+
+        setIsGenerating(true);
+        setError(null);
+
+        try {
+            // Validate image transform is available
+            if (!imageTransform) {
+                throw new Error('Image transform not available. Please reload the image.');
+            }
+
+            // Process selection to get cropped image and mask
+            const processed = await processForAPI(
+                baseImage.data,
+                baseImage.format,
+                imageTransform,
+                baseImage.width,
+                baseImage.height
+            );
+
+            if (!processed) {
+                throw new Error('Failed to process selection');
+            }
+
+            // Call generate API
+            const genResult = await generateFill(
+                model,
+                prompt,
+                processed.croppedImageBase64,
+                processed.maskBase64
+            );
+
+            if (!genResult.success || !genResult.image_base64) {
+                throw new Error(genResult.error || 'Generation failed');
+            }
+
+            // Composite the result back onto the base image
+            const compResult = await compositePatch(
+                baseImage.data,
+                genResult.image_base64,
+                processed.bounds.x,
+                processed.bounds.y,
+                processed.bounds.width,
+                processed.bounds.height,
+                baseImage.format
+            );
+
+            if (!compResult.success || !compResult.image_base64) {
+                throw new Error(compResult.error || 'Compositing failed');
+            }
+
+            // Update the base image with the composited result
+            updateImageData(compResult.image_base64);
+
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     return (
         <div className="app">
+            {/* Settings Modal */}
+            <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
             {/* Top Bar */}
             <header className="top-bar">
                 <div className="top-bar-left">
@@ -63,7 +156,7 @@ function App() {
                     <button className="top-bar-btn" onClick={handleOpenImage}>File</button>
                     <button className="top-bar-btn">Edit</button>
                     <button className="top-bar-btn">View</button>
-                    <button className="top-bar-btn">Help</button>
+                    <button className="top-bar-btn" onClick={() => setSettingsOpen(true)}>Settings</button>
                 </div>
                 <div className="top-bar-right">
                     <button className="top-bar-btn icon-btn" title="Undo">↩</button>
@@ -138,20 +231,38 @@ function App() {
                                     className="prompt-input"
                                     placeholder="Describe what you want to generate..."
                                     rows={4}
+                                    value={prompt}
+                                    onChange={(e) => setPrompt(e.target.value)}
                                 />
                             </label>
 
                             <div className="model-selector">
                                 <label className="input-label">Model</label>
-                                <select className="select-input">
+                                <select
+                                    className="select-input"
+                                    value={model}
+                                    onChange={(e) => setModel(e.target.value as AIModel)}
+                                >
                                     <option value="nano-banana-pro">Nano Banana Pro</option>
                                     <option value="nano-banana">Nano Banana (Fast)</option>
                                 </select>
                             </div>
 
-                            <button className="generate-btn" disabled={!baseImage}>
-                                Generate Fill
+                            {error && (
+                                <div className="error-message">{error}</div>
+                            )}
+
+                            <button
+                                className="generate-btn"
+                                disabled={!baseImage || !activeSelection || isGenerating}
+                                onClick={handleGenerate}
+                            >
+                                {isGenerating ? 'Generating...' : 'Generate Fill'}
                             </button>
+
+                            {!activeSelection && baseImage && (
+                                <p className="hint-text">Draw a selection to enable generation</p>
+                            )}
                         </div>
                     </div>
                 </aside>
@@ -161,7 +272,7 @@ function App() {
             <footer className="bottom-bar">
                 <div className="bottom-bar-left">
                     <span className="status-text">
-                        {isLoading ? 'Loading...' : baseImage ? 'Image loaded' : 'Ready'}
+                        {isGenerating ? 'Generating...' : isLoading ? 'Loading...' : baseImage ? 'Image loaded' : 'Ready'}
                     </span>
                 </div>
                 <div className="bottom-bar-center">
@@ -180,3 +291,4 @@ function App() {
 }
 
 export default App;
+

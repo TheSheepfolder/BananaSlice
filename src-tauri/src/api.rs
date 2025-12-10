@@ -35,8 +35,10 @@ pub enum Model {
 impl Model {
     pub fn to_gemini_model(&self) -> &'static str {
         match self {
-            Model::NanoBanana => "gemini-2.0-flash-exp",
-            Model::NanoBananaPro => "gemini-2.0-flash-exp", // Will update when Pro is available
+            // Fast model for image generation 
+            Model::NanoBanana => "gemini-2.5-flash-image",
+            // Pro model
+            Model::NanoBananaPro => "gemini-3-pro-image-preview",
         }
     }
 }
@@ -90,11 +92,14 @@ struct CandidateContent {
 
 #[derive(Debug, Deserialize)]
 struct ResponsePart {
+    #[serde(rename = "inlineData")]
     inline_data: Option<ResponseInlineData>,
+    text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct ResponseInlineData {
+    #[serde(rename = "mimeType")]
     mime_type: String,
     data: String,
 }
@@ -167,11 +172,13 @@ impl NanoBananaClient {
                 ],
             }],
             generation_config: GenerationConfig {
-                response_modalities: vec!["IMAGE".to_string(), "TEXT".to_string()],
+                response_modalities: vec!["IMAGE".to_string()],
             },
         };
 
         // Send request
+        log::info!("Sending request to Gemini API: {}", model_name);
+        
         let response = self
             .client
             .post(&url)
@@ -179,30 +186,47 @@ impl NanoBananaClient {
             .send()
             .await?;
 
+        let status = response.status();
         let response_text = response.text().await?;
+        
+        log::info!("API response status: {}", status);
         
         // Parse response
         let gemini_response: GeminiResponse = serde_json::from_str(&response_text)
-            .map_err(|e| ApiError::ParseError(format!("{}: {}", e, response_text)))?;
+            .map_err(|e| ApiError::ParseError(format!("{}: {}", e, &response_text[..response_text.len().min(200)])))?;
 
         // Check for API error
         if let Some(error) = gemini_response.error {
+            log::error!("Gemini API error: {}", error.message);
             return Err(ApiError::ApiError(error.message));
         }
 
         // Extract generated image
-        let candidates = gemini_response.candidates.ok_or(ApiError::NoImageGenerated)?;
+        let candidates = gemini_response.candidates.ok_or_else(|| {
+            log::error!("No candidates in response. Full response: {}", &response_text[..response_text.len().min(500)]);
+            ApiError::NoImageGenerated
+        })?;
+        
+        log::info!("Got {} candidates", candidates.len());
         
         for candidate in candidates {
-            for part in candidate.content.parts {
+            log::info!("Candidate has {} parts", candidate.content.parts.len());
+            for (i, part) in candidate.content.parts.into_iter().enumerate() {
+                log::info!("Part {}: text={}, inline_data={}", i, part.text.is_some(), part.inline_data.is_some());
+                if let Some(ref text) = part.text {
+                    log::info!("Found text part: {}", &text[..text.len().min(200)]);
+                }
                 if let Some(inline_data) = part.inline_data {
+                    log::info!("Found inline_data with mime_type: {}", inline_data.mime_type);
                     if inline_data.mime_type.starts_with("image/") {
+                        log::info!("Returning image data ({} bytes)", inline_data.data.len());
                         return Ok(inline_data.data);
                     }
                 }
             }
         }
 
+        log::error!("No image found in response parts");
         Err(ApiError::NoImageGenerated)
     }
 }

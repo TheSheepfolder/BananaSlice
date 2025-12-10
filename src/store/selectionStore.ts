@@ -1,6 +1,6 @@
 // Selection state management
 import { create } from 'zustand';
-import type { ProcessedSelection } from '../utils/selectionProcessor';
+import type { ProcessedSelection, ImageTransform } from '../utils/selectionProcessor';
 import { processSelectionForAPI } from '../utils/selectionProcessor';
 
 interface SelectionState {
@@ -20,7 +20,10 @@ interface SelectionState {
     // Process the current selection for API submission
     processForAPI: (
         imageBase64: string,
-        imageFormat: string
+        imageFormat: string,
+        imageTransform: ImageTransform,
+        imageWidth: number,
+        imageHeight: number
     ) => Promise<ProcessedSelection | null>;
 }
 
@@ -39,7 +42,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         processedSelection: null
     }),
 
-    processForAPI: async (imageBase64, imageFormat) => {
+    processForAPI: async (imageBase64, imageFormat, imageTransform, imageWidth, imageHeight) => {
         const { activeSelection } = get();
 
         if (!activeSelection) {
@@ -53,7 +56,10 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
             const processed = await processSelectionForAPI(
                 activeSelection,
                 imageBase64,
-                imageFormat
+                imageFormat,
+                imageTransform,
+                imageWidth,
+                imageHeight
             );
 
             set({
@@ -69,3 +75,4 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         }
     },
 }));
+

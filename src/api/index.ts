@@ -1,3 +1,3 @@
 // BananaSlice - API Exports
-export { generateFill, setApiKey, hasApiKey, deleteApiKey } from './generate';
-export type { GenerateRequest, GenerateResponse } from './generate';
+export { generateFill, compositePatch, setApiKey, hasApiKey, deleteApiKey } from './generate';
+export type { GenerateRequest, GenerateResponse, CompositeRequest, CompositeResponse } from './generate';

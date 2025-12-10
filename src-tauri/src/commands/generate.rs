@@ -3,7 +3,10 @@
 
 use crate::api::{Model, NanoBananaClient};
 use crate::keystore;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GenerateRequest {
@@ -20,9 +23,35 @@ pub struct GenerateResponse {
     pub error: Option<String>,
 }
 
+/// Get debug output directory
+fn get_debug_dir() -> PathBuf {
+    let path = PathBuf::from("C:/Users/sohan/Desktop/Projects/BananaSlice/debug_output");
+    if !path.exists() {
+        let _ = fs::create_dir_all(&path);
+    }
+    path
+}
+
+/// Save base64 image to file for debugging
+fn save_debug_image(base64_data: &str, filename: &str) {
+    if let Ok(bytes) = STANDARD.decode(base64_data) {
+        let path = get_debug_dir().join(filename);
+        if let Err(e) = fs::write(&path, bytes) {
+            log::error!("Failed to save debug image {}: {}", filename, e);
+        } else {
+            log::info!("Saved debug image: {:?}", path);
+        }
+    }
+}
+
 /// Generate fill for a selected region
 #[tauri::command]
 pub async fn generate_fill(request: GenerateRequest) -> GenerateResponse {
+    // Save input images for debugging
+    log::info!("=== DEBUG: Saving input images ===");
+    save_debug_image(&request.image_base64, "01_input_cropped.png");
+    save_debug_image(&request.mask_base64, "02_input_mask.png");
+    
     // Get API key from secure storage
     let api_key = match keystore::get_api_key() {
         Ok(key) => key,
@@ -48,10 +77,16 @@ pub async fn generate_fill(request: GenerateRequest) -> GenerateResponse {
         .generate_fill(model, &request.prompt, &request.image_base64, &request.mask_base64)
         .await
     {
-        Ok(image_base64) => GenerateResponse {
-            success: true,
-            image_base64: Some(image_base64),
-            error: None,
+        Ok(image_base64) => {
+            // Save output image for debugging
+            log::info!("=== DEBUG: Saving output image ===");
+            save_debug_image(&image_base64, "03_output_generated.png");
+            
+            GenerateResponse {
+                success: true,
+                image_base64: Some(image_base64),
+                error: None,
+            }
         },
         Err(e) => GenerateResponse {
             success: false,

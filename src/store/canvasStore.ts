@@ -3,6 +3,7 @@
 
 import { create } from 'zustand';
 import type { CanvasState, ImageData } from '../types';
+import type { ImageTransform } from '../utils/selectionProcessor';
 
 interface CanvasStoreState extends CanvasState {
     // Image data
@@ -11,8 +12,13 @@ interface CanvasStoreState extends CanvasState {
     isLoading: boolean;
     error: string | null;
 
+    // Image transform (how the image is positioned/scaled on canvas)
+    imageTransform: ImageTransform | null;
+
     // Actions
     setBaseImage: (image: ImageData, path: string) => void;
+    updateImageData: (data: string) => void;
+    setImageTransform: (transform: ImageTransform) => void;
     clearImage: () => void;
     setZoom: (zoom: number) => void;
     setPan: (x: number, y: number) => void;
@@ -39,6 +45,7 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
     imagePath: null,
     isLoading: false,
     error: null,
+    imageTransform: null,
     zoom: 100,
     panX: 0,
     panY: 0,
@@ -55,6 +62,15 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
             panX: 0,
             panY: 0,
         }),
+
+    updateImageData: (data) => {
+        const { baseImage } = get();
+        if (baseImage) {
+            set({ baseImage: { ...baseImage, data } });
+        }
+    },
+
+    setImageTransform: (transform) => set({ imageTransform: transform }),
 
     clearImage: () =>
         set({
