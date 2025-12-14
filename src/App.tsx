@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Canvas } from './components/Canvas';
@@ -9,6 +9,7 @@ import { useToolStore } from './store/toolStore';
 import { useSelectionStore } from './store/selectionStore';
 import { useLayerStore } from './store/layerStore';
 import { generateFill, hasApiKey } from './api';
+import { saveProject, loadProject, quickSave } from './utils/projectManager';
 import type { AIModel } from './types';
 import './styles/index.css';
 
@@ -42,6 +43,8 @@ function App() {
 
     // UI State
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [fileMenuOpen, setFileMenuOpen] = useState(false);
+    const fileMenuRef = useRef<HTMLDivElement>(null);
     const [prompt, setPrompt] = useState('');
     const [model, setModel] = useState<AIModel>('nano-banana-pro');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -51,14 +54,78 @@ function App() {
         invoke<AppInfo>('get_app_info').catch(console.error);
     }, []);
 
-    // Initialize base layer when a NEW image is loaded (not when composite updates)
+    // Initialize base layer when a NEW image is loaded (skip for project files)
     useEffect(() => {
-        if (baseImage && imagePath) {
+        if (baseImage && imagePath && !imagePath.endsWith('.banslice')) {
             setBaseLayer(baseImage.data, baseImage.width, baseImage.height);
         }
-    }, [imagePath, setBaseLayer]);
-    const handleLayerChange = async () => {
+    }, [imagePath, setBaseLayer, baseImage]);
+
+    // Close file menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (fileMenuRef.current && !fileMenuRef.current.contains(e.target as Node)) {
+                setFileMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+    const handleLayerChange = async () => { };
+
+    // Check if we're working on a saved project
+    const isProject = imagePath?.endsWith('.banslice') ?? false;
+
+    const handleQuickSave = async () => {
+        setFileMenuOpen(false);
+        if (!isProject) return;
+        try {
+            await quickSave();
+            console.log('Project saved');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to save');
+        }
     };
+
+    const handleSaveProject = async () => {
+        setFileMenuOpen(false);
+        try {
+            const path = await saveProject();
+            if (path) {
+                console.log('Project saved to:', path);
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to save project');
+        }
+    };
+
+    const handleLoadProject = async () => {
+        setFileMenuOpen(false);
+        try {
+            const result = await loadProject();
+            if (!result.success && result.error) {
+                setError(result.error);
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load project');
+        }
+    };
+
+    // Ctrl+S keyboard shortcut
+    useEffect(() => {
+        const handleKeyDown = async (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (isProject) {
+                    await handleQuickSave();
+                } else if (baseImage) {
+                    await handleSaveProject();
+                }
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isProject, baseImage]);
 
     const handleOpenImage = async () => {
         try {
@@ -167,7 +234,32 @@ function App() {
                     <span className="app-version">v0.1.0</span>
                 </div>
                 <div className="top-bar-center">
-                    <button className="top-bar-btn" onClick={handleOpenImage}>File</button>
+                    <div className="menu-container" ref={fileMenuRef}>
+                        <button
+                            className={`top-bar-btn ${fileMenuOpen ? 'active' : ''}`}
+                            onClick={() => setFileMenuOpen(!fileMenuOpen)}
+                        >
+                            File
+                        </button>
+                        {fileMenuOpen && (
+                            <div className="dropdown-menu">
+                                <button onClick={() => { setFileMenuOpen(false); handleOpenImage(); }}>
+                                    Open Image...
+                                </button>
+                                <button onClick={handleLoadProject}>
+                                    Open Project...
+                                </button>
+                                <div className="menu-divider" />
+                                <button onClick={handleQuickSave} disabled={!isProject}>
+                                    Save
+                                    <span className="menu-shortcut">Ctrl+S</span>
+                                </button>
+                                <button onClick={handleSaveProject} disabled={!baseImage}>
+                                    Save Project As...
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     <button className="top-bar-btn">Edit</button>
                     <button className="top-bar-btn">View</button>
                     <button className="top-bar-btn" onClick={() => setSettingsOpen(true)}>Settings</button>

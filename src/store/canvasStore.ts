@@ -18,7 +18,7 @@ interface CanvasStoreState extends CanvasState {
     // Actions
     setBaseImage: (image: ImageData, path: string) => void;
     updateImageData: (data: string) => void;
-    setImageTransform: (transform: ImageTransform) => void;
+    setImageTransform: (transform: ImageTransform | null) => void;
     clearImage: () => void;
     setZoom: (zoom: number) => void;
     setPan: (x: number, y: number) => void;

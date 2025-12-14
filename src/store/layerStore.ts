@@ -39,6 +39,9 @@ interface LayerState {
 
     // Initialize with base image
     setBaseLayer: (imageData: string, width: number, height: number) => void;
+
+    // Restore full project state
+    restoreLayers: (layers: Layer[], activeId: string | null) => void;
 }
 
 // Generate unique layer ID
@@ -208,6 +211,13 @@ export const useLayerStore = create<LayerState>((set, get) => ({
         set({
             layers: [baseLayer],
             activeLayerId: id,
+        });
+    },
+
+    restoreLayers: (layers, activeId) => {
+        set({
+            layers,
+            activeLayerId: activeId
         });
     },
 }));

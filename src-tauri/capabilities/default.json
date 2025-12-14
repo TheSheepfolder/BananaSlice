@@ -10,6 +10,16 @@
     "fs:default",
     "dialog:default",
     "fs:allow-read-file",
-    "fs:allow-write-file"
+    "fs:allow-write-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-text-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    }
   ]
 }

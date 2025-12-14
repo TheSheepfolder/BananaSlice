@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Canvas as FabricCanvas, Image as FabricImage, Point, Rect, Polyline } from 'fabric';
 import { useCanvasStore } from '../store/canvasStore';
 import { useToolStore } from '../store/toolStore';
@@ -11,6 +11,8 @@ export function Canvas() {
     const activeSelectionRef = useRef<any>(null); // Track the current selection
     const editLayerObjectsRef = useRef<Map<string, FabricImage>>(new Map()); // Track edit layer objects
     const baseImageObjectRef = useRef<FabricImage | null>(null);
+    const isProcessingLayersRef = useRef(false); // Prevent concurrent processing
+    const [baseImageReady, setBaseImageReady] = useState(false);
 
     const {
         baseImage,
@@ -323,6 +325,12 @@ export function Canvas() {
 
         const canvas = fabricRef.current;
 
+        // Clear canvas and cached objects synchronously BEFORE loading new image
+        canvas.remove(...canvas.getObjects());
+        editLayerObjectsRef.current.clear();
+        baseImageObjectRef.current = null;
+        setBaseImageReady(false);
+
         const mimeType = baseImage.format === 'jpg' || baseImage.format === 'jpeg'
             ? 'image/jpeg'
             : baseImage.format === 'webp'
@@ -333,8 +341,6 @@ export function Canvas() {
 
         FabricImage.fromURL(dataUrl)
             .then((img) => {
-                canvas.remove(...canvas.getObjects());
-
                 canvas.setZoom(1);
 
                 const scaleX = (canvas.width! * 0.9) / img.width!;
@@ -372,203 +378,210 @@ export function Canvas() {
                 baseImageObjectRef.current = img;
 
                 canvas.add(img);
-                canvas.renderAll();
 
-                setImageTransform({
+                const newTransform = {
                     left: centerX,
                     top: centerY,
                     scaleX: scale,
                     scaleY: scale,
-                });
+                };
 
+                setImageTransform(newTransform);
                 setZoom(100);
+                canvas.renderAll();
+                setBaseImageReady(true);
             })
             .catch((err) => {
                 console.error('Failed to load image:', err);
             });
-    }, [baseImage, setZoom, setImageTransform]);
+    }, [baseImage, setZoom, setImageTransform, activeTool]);
 
     // Handle Edit Layers (Rendering & Interaction)
     useEffect(() => {
         const canvas = fabricRef.current;
-        if (!canvas || !imageTransform || !layers) return;
+        // Wait until base image is loaded before processing layers
+        if (!canvas || !imageTransform || !layers || !baseImageReady) {
+            return;
+        }
+
+        // Prevent concurrent processing
+        if (isProcessingLayersRef.current) {
+            return;
+        }
+        isProcessingLayersRef.current = true;
+
+
 
         const currentObjects = editLayerObjectsRef.current;
 
-        // Find base layer ID to manage its selection state
-        const baseLayerId = layers.find(l => l.type === 'base')?.id;
+        // Find base layer to manage its state
+        const baseLayer = layers.find(l => l.type === 'base');
+        const baseLayerId = baseLayer?.id;
 
-        const processLayers = async () => {
-            // Handle active selection setup for base layer
-            if (activeLayerId === baseLayerId && baseImageObjectRef.current) {
-                if (canvas.getActiveObject() !== baseImageObjectRef.current) {
-                    canvas.setActiveObject(baseImageObjectRef.current);
-                    canvas.requestRenderAll();
-                }
+        // Sync base layer visibility/opacity to base image object
+        if (baseLayer && baseImageObjectRef.current) {
+            baseImageObjectRef.current.set('visible', baseLayer.visible);
+            baseImageObjectRef.current.set('opacity', baseLayer.opacity / 100);
+        }
+
+        // Handle active selection setup for base layer
+        if (activeLayerId === baseLayerId && baseImageObjectRef.current) {
+            if (canvas.getActiveObject() !== baseImageObjectRef.current) {
+                canvas.setActiveObject(baseImageObjectRef.current);
             }
+        }
 
-            for (const layer of layers) {
-                // Skip base layer - is handled by the main image loader
-                if (layer.type === 'base') continue;
-
-                let obj = currentObjects.get(layer.id);
-
-                if (!obj) {
-                    // Create new fabric object for layer
-                    const mimeType = 'image/png';
-                    const dataUrl = `data:${mimeType};base64,${layer.imageData}`;
-
-                    try {
-                        const img = await FabricImage.fromURL(dataUrl);
-                        obj = img;
-                        currentObjects.set(layer.id, obj);
-                        canvas.add(obj);
-
-                        const isSelectionTool = activeTool === 'rectangle' || activeTool === 'lasso';
-
-                        // Configure interaction
-                        obj.set({
-                            borderColor: '#3b82f6',
-                            cornerColor: '#3b82f6',
-                            cornerStyle: 'circle',
-                            transparentCorners: false,
-                            borderScaleFactor: 2,
-                            selectable: !isSelectionTool,
-                            evented: !isSelectionTool,
-                            hoverCursor: isSelectionTool ? 'crosshair' : 'default',
-                        });
-
-                        // Event listener for modification
-                        obj.on('modified', () => {
-                            if (!imageTransform) return;
-
-                            // Calculate new position relative to original image
-                            // Convert from Canvas (screen) -> Image Space
-                            const relativeLeft = (obj!.left! - imageTransform.left) / imageTransform.scaleX;
-                            const relativeTop = (obj!.top! - imageTransform.top) / imageTransform.scaleY;
-
-                            // Width/Height in image space
-                            const scaledWidth = obj!.width! * obj!.scaleX!;
-                            const scaledHeight = obj!.height! * obj!.scaleY!;
-
-                            const relativeWidth = scaledWidth / imageTransform.scaleX;
-                            const relativeHeight = scaledHeight / imageTransform.scaleY;
-
-                            updateLayerTransform(
-                                layer.id,
-                                Math.round(relativeLeft),
-                                Math.round(relativeTop),
-                                Math.round(relativeWidth),
-                                Math.round(relativeHeight)
-                            );
-                        });
-
-                        // Select if active
-                        if (layer.id === activeLayerId) {
-                            canvas.setActiveObject(obj);
-                        }
-                    } catch (err) {
-                        console.error('Failed to load layer image:', layer.id, err);
-                        continue;
-                    }
-                }
-
-                if (!obj) continue;
-
-                // Sync properties from store
+        // Process each non-base layer
+        const processAllLayers = async () => {
+            try {
+                const isSelectionTool = activeTool === 'rectangle' || activeTool === 'lasso';
                 const scale = imageTransform.scaleX;
 
-                // Position: BaseImageLeft + (LayerX * Scale)
-                const targetLeft = imageTransform.left + ((layer.x || 0) * scale);
-                const targetTop = imageTransform.top + ((layer.y || 0) * scale);
+                for (const layer of layers) {
+                    // Skip base layer - visibility already handled above
+                    if (layer.type === 'base') continue;
 
-                // Size/Scale
-                let targetScaleX = scale;
-                let targetScaleY = scale;
+                    let obj = currentObjects.get(layer.id);
 
-                if (layer.width && layer.height) {
-                    targetScaleX = (layer.width * scale) / obj.width!;
-                    targetScaleY = (layer.height * scale) / obj.height!;
-                }
+                    // Create new fabric object if needed
+                    if (!obj) {
+                        const mimeType = 'image/png';
+                        const dataUrl = `data:${mimeType};base64,${layer.imageData}`;
 
-                // Only update if significantly different to prevent render loops
-                if (Math.abs(obj.left! - targetLeft) > 1) obj.set('left', targetLeft);
-                if (Math.abs(obj.top! - targetTop) > 1) obj.set('top', targetTop);
+                        try {
+                            const img = await FabricImage.fromURL(dataUrl);
+                            obj = img;
+                            currentObjects.set(layer.id, obj);
+                            canvas.add(obj);
+                        } catch (err) {
+                            console.error('Failed to load layer image:', layer.id, err);
+                            continue;
+                        }
+                    }
 
-                // Opacity & Visibility
-                obj.set('opacity', layer.opacity / 100);
-                obj.set('visible', layer.visible);
+                    if (!obj) continue;
 
-                // Update resize handles if size changed externally
-                if (Math.abs(obj.scaleX! - targetScaleX) > 0.01) obj.set('scaleX', targetScaleX);
-                if (Math.abs(obj.scaleY! - targetScaleY) > 0.01) obj.set('scaleY', targetScaleY);
+                    // Calculate position and scale
+                    const targetLeft = imageTransform.left + ((layer.x || 0) * scale);
+                    const targetTop = imageTransform.top + ((layer.y || 0) * scale);
+                    let targetScaleX = scale;
+                    let targetScaleY = scale;
+                    if (layer.width && layer.height && obj.width && obj.height) {
+                        targetScaleX = (layer.width * scale) / obj.width;
+                        targetScaleY = (layer.height * scale) / obj.height;
+                    }
 
-                // Update active state
-                if (layer.id === activeLayerId && canvas.getActiveObject() !== obj) {
-                    canvas.setActiveObject(obj);
-                }
+                    // Apply ALL properties
+                    obj.set({
+                        left: targetLeft,
+                        top: targetTop,
+                        scaleX: targetScaleX,
+                        scaleY: targetScaleY,
+                        visible: layer.visible,
+                        opacity: layer.opacity / 100,
+                        selectable: !isSelectionTool,
+                        evented: !isSelectionTool,
+                        hoverCursor: isSelectionTool ? 'crosshair' : 'default',
+                        borderColor: '#3b82f6',
+                        cornerColor: '#3b82f6',
+                        cornerStyle: 'circle',
+                        transparentCorners: false,
+                        borderScaleFactor: 2,
+                    });
 
-                obj.setCoords();
-            }
+                    obj.setCoords();
 
-            // Enforce Z-Index order to match store (Bottom -> Top)
-            layers.forEach((layer, index) => {
-                const obj = layer.type === 'base'
-                    ? baseImageObjectRef.current
-                    : currentObjects.get(layer.id);
-
-                if (obj && canvas.getObjects().indexOf(obj) !== index) {
-                    canvas.moveObjectTo(obj, index);
-                }
-            });
-
-            // Sync selection from Canvas -> Store
-            const handleSelection = (e: any) => {
-                const selected = e.selected?.[0];
-                if (!selected) return;
-
-                // Check if base layer selected
-                if (selected === baseImageObjectRef.current && baseLayerId) {
-                    setActiveLayer(baseLayerId);
-                    return;
-                }
-
-                // Check edit layers
-                for (const [id, obj] of currentObjects.entries()) {
-                    if (obj === selected) {
-                        setActiveLayer(id);
-                        break;
+                    // Update active state
+                    if (layer.id === activeLayerId && canvas.getActiveObject() !== obj) {
+                        canvas.setActiveObject(obj);
                     }
                 }
-            };
 
-            const handleSelectionCleared = () => {
-                setActiveLayer(null);
-            };
+                // Enforce Z-Index order to match store (Bottom -> Top)
+                layers.forEach((layer, index) => {
+                    const obj = layer.type === 'base'
+                        ? baseImageObjectRef.current
+                        : currentObjects.get(layer.id);
 
-            canvas.off('selection:created');
-            canvas.off('selection:updated');
-            canvas.off('selection:cleared');
+                    if (obj) {
+                        const currentIndex = canvas.getObjects().indexOf(obj);
+                        if (currentIndex !== index) {
+                            canvas.moveObjectTo(obj, index);
+                        }
+                    }
+                });
 
-            canvas.on('selection:created', handleSelection);
-            canvas.on('selection:updated', handleSelection);
-            canvas.on('selection:cleared', handleSelectionCleared);
-
-            // Remove objects for deleted layers
-            const layerIds = new Set(layers.map(l => l.id));
-            for (const [id, obj] of currentObjects.entries()) {
-                if (!layerIds.has(id)) {
-                    canvas.remove(obj);
-                    currentObjects.delete(id);
+                // Remove objects for deleted layers
+                const layerIds = new Set(layers.map(l => l.id));
+                for (const [id, obj] of currentObjects.entries()) {
+                    if (!layerIds.has(id)) {
+                        canvas.remove(obj);
+                        currentObjects.delete(id);
+                    }
                 }
-            }
 
-            canvas.requestRenderAll();
+                canvas.requestRenderAll();
+            } finally {
+                isProcessingLayersRef.current = false;
+            }
         };
 
-        processLayers();
+        processAllLayers();
 
-    }, [layers, imageTransform, updateLayerTransform, activeLayerId]);
+        // Setup selection handlers (only once per effect run)
+        const handleSelection = (e: any) => {
+            const selected = e.selected?.[0];
+            if (!selected) return;
+
+            // Check if base layer selected
+            if (selected === baseImageObjectRef.current && baseLayerId) {
+                setActiveLayer(baseLayerId);
+                return;
+            }
+
+            // Check edit layers
+            for (const [id, obj] of currentObjects.entries()) {
+                if (obj === selected) {
+                    setActiveLayer(id);
+                    break;
+                }
+            }
+        };
+
+        const handleSelectionCleared = () => {
+            setActiveLayer(null);
+        };
+
+        canvas.off('selection:created');
+        canvas.off('selection:updated');
+        canvas.off('selection:cleared');
+
+        canvas.on('selection:created', handleSelection);
+        canvas.on('selection:updated', handleSelection);
+        canvas.on('selection:cleared', handleSelectionCleared);
+
+        // Attach modified event listeners for layers
+        for (const [layerId, obj] of currentObjects.entries()) {
+            obj.off('modified');
+            obj.on('modified', () => {
+                const relativeLeft = (obj.left! - imageTransform.left) / imageTransform.scaleX;
+                const relativeTop = (obj.top! - imageTransform.top) / imageTransform.scaleY;
+                const scaledWidth = obj.width! * obj.scaleX!;
+                const scaledHeight = obj.height! * obj.scaleY!;
+                const relativeWidth = scaledWidth / imageTransform.scaleX;
+                const relativeHeight = scaledHeight / imageTransform.scaleY;
+
+                updateLayerTransform(
+                    layerId,
+                    Math.round(relativeLeft),
+                    Math.round(relativeTop),
+                    Math.round(relativeWidth),
+                    Math.round(relativeHeight)
+                );
+            });
+        }
+
+    }, [layers, imageTransform, updateLayerTransform, activeLayerId, baseImageReady, activeTool, setActiveLayer]);
 
     // Apply zoom changes from store
     useEffect(() => {
