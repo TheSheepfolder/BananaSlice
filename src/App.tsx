@@ -10,6 +10,8 @@ import { useSelectionStore } from './store/selectionStore';
 import { useLayerStore } from './store/layerStore';
 import { generateFill, hasApiKey } from './api';
 import { saveProject, loadProject, quickSave } from './utils/projectManager';
+import { exportImage } from './utils/exportManager';
+import type { ExportFormat } from './utils/exportManager';
 import type { AIModel } from './types';
 import './styles/index.css';
 
@@ -108,6 +110,18 @@ function App() {
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load project');
+        }
+    };
+
+    const handleExport = async (format: ExportFormat) => {
+        setFileMenuOpen(false);
+        try {
+            const path = await exportImage({ format, quality: 92 });
+            if (path) {
+                console.log('Exported to:', path);
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to export');
         }
     };
 
@@ -257,6 +271,24 @@ function App() {
                                 <button onClick={handleSaveProject} disabled={!baseImage}>
                                     Save Project As...
                                 </button>
+                                <div className="menu-divider" />
+                                <div className="submenu-container">
+                                    <button disabled={!baseImage} className="submenu-trigger">
+                                        Export
+                                        <span className="submenu-arrow">▶</span>
+                                    </button>
+                                    <div className="submenu">
+                                        <button onClick={() => handleExport('png')} disabled={!baseImage}>
+                                            PNG
+                                        </button>
+                                        <button onClick={() => handleExport('jpeg')} disabled={!baseImage}>
+                                            JPEG
+                                        </button>
+                                        <button onClick={() => handleExport('webp')} disabled={!baseImage}>
+                                            WebP
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
