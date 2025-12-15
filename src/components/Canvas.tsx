@@ -18,8 +18,6 @@ export function Canvas() {
     const {
         baseImage,
         zoom,
-        panX,
-        panY,
         setCursorPosition,
         setZoom,
         setPan,
@@ -68,36 +66,65 @@ export function Canvas() {
             }
         });
 
+
+
         // Panning with middle mouse or shift+drag
         let isPanning = false;
         let lastPosX = 0;
         let lastPosY = 0;
 
+        // Native mousedown handler for middle-click (Fabric.js doesn't capture button 1)
+        const handleNativeMouseDown = (e: MouseEvent) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                e.stopPropagation();
+                isPanning = true;
+                canvas.selection = false;
+                lastPosX = e.clientX;
+                lastPosY = e.clientY;
+            }
+        };
+
+        // Also handle shift+drag via Fabric.js
         canvas.on('mouse:down', (e) => {
             const evt = e.e as MouseEvent;
-            if (evt.button === 1 || (evt.button === 0 && evt.shiftKey)) {
+            if (evt.button === 0 && evt.shiftKey) {
                 isPanning = true;
-                canvas.isDrawingMode = false;
                 canvas.selection = false;
                 lastPosX = evt.clientX;
                 lastPosY = evt.clientY;
             }
         });
 
-        canvas.on('mouse:move', (e) => {
-            if (isPanning && e.e) {
-                const evt = e.e as MouseEvent;
-                const deltaX = evt.clientX - lastPosX;
-                const deltaY = evt.clientY - lastPosY;
+        // Native mousemove for panning
+        const handleNativeMouseMove = (e: MouseEvent) => {
+            if (isPanning) {
+                const deltaX = e.clientX - lastPosX;
+                const deltaY = e.clientY - lastPosY;
 
-                setPan(panX + deltaX, panY + deltaY);
+                // Get fresh pan values from store
+                const { panX: currentPanX, panY: currentPanY } = useCanvasStore.getState();
+                setPan(currentPanX + deltaX, currentPanY + deltaY);
 
-                lastPosX = evt.clientX;
-                lastPosY = evt.clientY;
+                lastPosX = e.clientX;
+                lastPosY = e.clientY;
 
                 canvas.relativePan(new Point(deltaX, deltaY));
+
+                // Update object coords after pan to fix selection borders
+                canvas.getObjects().forEach(obj => obj.setCoords());
             }
-        });
+        };
+
+        // Native mouseup to stop panning
+        const handleNativeMouseUp = () => {
+            isPanning = false;
+        };
+
+        const wrapperEl = canvas.wrapperEl;
+        wrapperEl.addEventListener('mousedown', handleNativeMouseDown);
+        window.addEventListener('mousemove', handleNativeMouseMove);
+        window.addEventListener('mouseup', handleNativeMouseUp);
 
         canvas.on('mouse:up', () => {
             isPanning = false;
@@ -117,6 +144,9 @@ export function Canvas() {
                 new Point(evt.offsetX, evt.offsetY),
                 newZoom
             );
+
+            // Update object coords after zoom to fix selection borders
+            canvas.getObjects().forEach(obj => obj.setCoords());
 
             setZoom(newZoom * 100);
             evt.preventDefault();
