@@ -1,4 +1,4 @@
-// BananaSlice - Settings Store
+// Settings Store
 // Manages application settings
 
 import { create } from 'zustand';

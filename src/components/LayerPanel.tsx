@@ -5,10 +5,9 @@ import './LayerPanel.css';
 
 interface LayerPanelProps {
     className?: string;
-    onLayerChange?: () => void;
 }
 
-export function LayerPanel({ className = '', onLayerChange }: LayerPanelProps) {
+export function LayerPanel({ className = '' }: LayerPanelProps) {
     const {
         layers,
         activeLayerId,
@@ -43,22 +42,18 @@ export function LayerPanel({ className = '', onLayerChange }: LayerPanelProps) {
 
     const handleVisibilityToggle = (id: string) => {
         toggleVisibility(id);
-        onLayerChange?.();
     };
 
     const handleOpacityChange = (id: string, value: number) => {
         setOpacity(id, value);
-        onLayerChange?.();
     };
 
     const handleDelete = (id: string) => {
         removeLayer(id);
-        onLayerChange?.();
     };
 
     const handleDuplicate = (id: string) => {
         duplicateLayer(id);
-        onLayerChange?.();
     };
 
     const isBaseLayer = (type: string) => type === 'base';
@@ -166,7 +161,6 @@ export function LayerPanel({ className = '', onLayerChange }: LayerPanelProps) {
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             moveLayerUp(layer.id);
-                                            onLayerChange?.();
                                         }}
                                         disabled={layer.order === layers.length - 1}
                                         title="Move up"
@@ -178,9 +172,8 @@ export function LayerPanel({ className = '', onLayerChange }: LayerPanelProps) {
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             moveLayerDown(layer.id);
-                                            onLayerChange?.();
                                         }}
-                                        disabled={layer.order === 1} // Can't go below base layer
+                                        disabled={layer.order === 1}
                                         title="Move down"
                                     >
                                         ↓

@@ -1,4 +1,4 @@
-// BananaSlice - Canvas Store
+// Canvas Store
 // Manages canvas state, image loading, and viewport
 
 import { create } from 'zustand';

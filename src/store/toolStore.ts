@@ -1,4 +1,4 @@
-// BananaSlice - Tool Store
+// Tool Store
 // Manages active tool
 
 import { create } from 'zustand';

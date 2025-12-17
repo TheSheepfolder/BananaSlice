@@ -1,6 +1,7 @@
-// BananaSlice - Store Exports
+// Store Exports
 export { useToolStore } from './toolStore';
 export { useCanvasStore } from './canvasStore';
 export { useSettingsStore } from './settingsStore';
 export { useSelectionStore } from './selectionStore';
 export { useLayerStore } from './layerStore';
+export { useHistoryStore } from './historyStore';

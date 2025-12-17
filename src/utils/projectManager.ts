@@ -2,6 +2,7 @@ import { save, open } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { useCanvasStore } from '../store/canvasStore';
 import { useLayerStore } from '../store/layerStore';
+import { useHistoryStore } from '../store/historyStore';
 import type { Layer } from '../types';
 
 interface ProjectFile {
@@ -140,6 +141,9 @@ export const loadProject = async (): Promise<{ success: boolean; error?: string 
         if (data.layers && data.layers.length > 0) {
             layerStore.restoreLayers(data.layers, data.layers[0].id);
         }
+
+        // Reset history for the new project
+        useHistoryStore.getState().reset();
 
         return { success: true };
     } catch (err) {

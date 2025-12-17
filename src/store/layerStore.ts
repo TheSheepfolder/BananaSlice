@@ -1,4 +1,4 @@
-// BananaSlice - Layer Store
+// Layer Store
 // Manages the layer stack for compositing edits
 
 import { create } from 'zustand';

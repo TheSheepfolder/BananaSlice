@@ -1,4 +1,4 @@
-// BananaSlice - Nano Banana API Module
+// Nano Banana API Module
 // Handles communication with Google's Gemini Image API
 
 use reqwest::Client;

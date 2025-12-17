@@ -9,6 +9,7 @@ import { useCanvasStore } from './store/canvasStore';
 import { useToolStore } from './store/toolStore';
 import { useSelectionStore } from './store/selectionStore';
 import { useLayerStore } from './store/layerStore';
+import { useHistoryStore } from './store/historyStore';
 import { generateFill, hasApiKey } from './api';
 import { saveProject, loadProject, quickSave } from './utils/projectManager';
 import { exportImage } from './utils/exportManager';
@@ -43,6 +44,14 @@ function App() {
         setBaseLayer,
         addLayer,
     } = useLayerStore();
+
+    const {
+        undo: handleUndo,
+        redo: handleRedo,
+        canUndo,
+        canRedo,
+        reset: resetHistory,
+    } = useHistoryStore();
 
     // UI State
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -83,8 +92,10 @@ function App() {
     useEffect(() => {
         if (baseImage && imagePath && !imagePath.endsWith('.banslice')) {
             setBaseLayer(baseImage.data, baseImage.width, baseImage.height);
+            // Reset history for new image
+            resetHistory();
         }
-    }, [imagePath, setBaseLayer, baseImage]);
+    }, [imagePath, setBaseLayer, baseImage, resetHistory]);
 
     // Close file menu when clicking outside
     useEffect(() => {
@@ -96,7 +107,7 @@ function App() {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-    const handleLayerChange = async () => { };
+
 
     // Check if we're working on a saved project
     const isProject = imagePath?.endsWith('.banslice') ?? false;
@@ -148,9 +159,11 @@ function App() {
         }
     };
 
-    // Ctrl+S keyboard shortcut
+
+    // Keyboard shortcuts: Ctrl+S, Ctrl+Z, Ctrl+Y
     useEffect(() => {
         const handleKeyDown = async (e: KeyboardEvent) => {
+            // Save shortcuts
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
                 if (isProject) {
@@ -158,6 +171,16 @@ function App() {
                 } else if (baseImage) {
                     await handleSaveProject();
                 }
+            }
+            // Undo: Ctrl+Z
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                handleUndo();
+            }
+            // Redo: Ctrl+Y or Ctrl+Shift+Z
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                handleRedo();
             }
         };
         document.addEventListener('keydown', handleKeyDown);
@@ -320,8 +343,22 @@ function App() {
                     <button className="top-bar-btn" onClick={() => setSettingsOpen(true)}>Settings</button>
                 </div>
                 <div className="top-bar-right">
-                    <button className="top-bar-btn icon-btn" title="Undo">↩</button>
-                    <button className="top-bar-btn icon-btn" title="Redo">↪</button>
+                    <button
+                        className="top-bar-btn icon-btn"
+                        title="Undo (Ctrl+Z)"
+                        onClick={handleUndo}
+                        disabled={!canUndo()}
+                    >
+                        ↩
+                    </button>
+                    <button
+                        className="top-bar-btn icon-btn"
+                        title="Redo (Ctrl+Y)"
+                        onClick={handleRedo}
+                        disabled={!canRedo()}
+                    >
+                        ↪
+                    </button>
                 </div>
             </header>
 
@@ -431,7 +468,7 @@ function App() {
                     </div>
 
                     {/* Layer Panel */}
-                    <LayerPanel onLayerChange={handleLayerChange} />
+                    <LayerPanel />
                 </aside>
             </main>
 

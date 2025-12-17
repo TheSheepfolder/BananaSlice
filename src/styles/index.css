@@ -1,4 +1,4 @@
-/* BananaSlice - Global Styles */
+/* Global Styles */
 
 :root {
     /* Colors */
@@ -187,9 +187,15 @@ button:focus-visible {
     color: var(--text-secondary);
 }
 
-.icon-btn:hover {
+.icon-btn:hover:not(:disabled) {
     color: var(--text-primary);
     background: var(--surface-hover);
+}
+
+.icon-btn:disabled {
+    color: var(--text-disabled);
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 /* Dropdown Menu */

@@ -1,4 +1,4 @@
-// BananaSlice - Secure API Key Storage
+// Secure API Key Storage
 // Uses file-based storage in app data directory
 
 use std::fs;
