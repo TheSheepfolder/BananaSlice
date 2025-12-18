@@ -95,25 +95,27 @@ export function Tooltip({
 
     const tooltipContent = (
         <div
-            ref={tooltipRef}
-            className={`tooltip ${position} ${visible ? 'visible' : ''} ${hasMultipleLines ? 'multiline' : ''}`}
+            className="tooltip-portal-container"
             style={{
                 position: 'fixed',
-                top: position === 'top' ? coords.top : position === 'bottom' ? coords.top : coords.top,
+                top: coords.top,
                 left: coords.left,
-                transform: position === 'top'
-                    ? `translateX(-50%) translateY(-100%)`
-                    : position === 'bottom'
-                        ? `translateX(-50%)`
-                        : position === 'left'
-                            ? `translateX(-100%) translateY(-50%)`
-                            : `translateY(-50%)`,
+                width: 0,
+                height: 0,
+                overflow: 'visible',
+                zIndex: 10000,
+                pointerEvents: 'none',
             }}
-            role="tooltip"
         >
-            <span className="tooltip-title">{content}</span>
-            {shortcut && <span className="tooltip-shortcut">{shortcut}</span>}
-            {description && <span className="tooltip-description">{description}</span>}
+            <div
+                ref={tooltipRef}
+                className={`tooltip ${position} ${visible ? 'visible' : ''} ${hasMultipleLines ? 'multiline' : ''}`}
+                role="tooltip"
+            >
+                <span className="tooltip-title">{content}</span>
+                {shortcut && <span className="tooltip-shortcut">{shortcut}</span>}
+                {description && <span className="tooltip-description">{description}</span>}
+            </div>
         </div>
     );
 

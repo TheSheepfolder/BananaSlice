@@ -16,12 +16,12 @@
 }
 
 .error-boundary-icon {
-    font-size: 48px;
+    font-size: var(--font-size-3xl);
     margin-bottom: var(--spacing-lg);
 }
 
 .error-boundary h2 {
-    font-size: 20px;
+    font-size: var(--font-size-xl);
     font-weight: var(--font-weight-medium);
     color: var(--text-primary);
     margin-bottom: var(--spacing-sm);
@@ -42,7 +42,7 @@
 }
 
 .error-boundary-btn {
-    padding: 8px 16px;
+    padding: var(--spacing-sm) var(--spacing-md);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
     border-radius: var(--radius-sm);

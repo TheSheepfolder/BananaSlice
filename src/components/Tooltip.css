@@ -9,7 +9,7 @@
 /* Tooltip bubble */
 .tooltip {
     position: absolute;
-    padding: 6px 10px;
+    padding: var(--spacing-xs) var(--spacing-sm);
     background: var(--bg-popover);
     border: 1px solid var(--border-medium);
     border-radius: var(--radius-sm);
@@ -126,7 +126,7 @@
 .tooltip-shortcut {
     display: inline-block;
     margin-left: var(--spacing-sm);
-    padding: 1px 4px;
+    padding: var(--spacing-2xs) var(--spacing-xs);
     background: var(--bg-input);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xs);
@@ -149,4 +149,5 @@
     white-space: normal;
     text-align: left;
     max-width: 220px;
+    width: max-content;
 }

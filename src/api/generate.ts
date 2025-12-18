@@ -7,6 +7,7 @@ export interface GenerateRequest {
     prompt: string;
     image_base64: string;
     mask_base64: string;
+    reference_images?: string[]; // Optional reference images as base64
 }
 
 export interface GenerateResponse {
@@ -33,18 +34,25 @@ export interface CompositeResponse {
 
 /**
  * Generate fill for a selected region using Nano Banana API
+ * @param model - Which model to use
+ * @param prompt - Text description of what to generate
+ * @param imageBase64 - The cropped source image as base64
+ * @param maskBase64 - The mask image as base64
+ * @param referenceImages - Optional reference images to guide generation
  */
 export async function generateFill(
     model: AIModel,
     prompt: string,
     imageBase64: string,
-    maskBase64: string
+    maskBase64: string,
+    referenceImages: string[] = []
 ): Promise<GenerateResponse> {
     const request: GenerateRequest = {
         model,
         prompt,
         image_base64: imageBase64,
         mask_base64: maskBase64,
+        reference_images: referenceImages,
     };
 
     return invoke<GenerateResponse>('generate_fill', { request });

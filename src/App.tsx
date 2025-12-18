@@ -9,6 +9,8 @@ import { ProgressIndicator, type ProgressStage } from './components/ProgressIndi
 import { Tooltip } from './components/Tooltip';
 import { ToastContainer } from './components/Toast';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
+import { ReferenceImages } from './components/ReferenceImages';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { toast } from './store/toastStore';
 import { useCanvasStore } from './store/canvasStore';
 import { useToolStore } from './store/toolStore';
@@ -20,6 +22,8 @@ import { useRecentFilesStore } from './store/recentFilesStore';
 import { generateFill, hasApiKey } from './api';
 import { saveProject, loadProject, quickSave } from './utils/projectManager';
 import { exportImage } from './utils/exportManager';
+import { calculateAspectRatioAdjustment } from './utils/aspectRatio';
+import { getSelectionBoundsCanvas } from './utils/selectionProcessor';
 import type { ExportFormat } from './utils/exportManager';
 import type { AIModel } from './types';
 import './styles/index.css';
@@ -45,7 +49,7 @@ function App() {
 
     const { activeTool, setActiveTool } = useToolStore();
 
-    const { activeSelection, processForAPI, clearSelection } = useSelectionStore();
+    const { activeSelection, processForAPI, clearSelection, setActiveSelection } = useSelectionStore();
 
     const {
         setBaseLayer,
@@ -71,6 +75,15 @@ function App() {
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [referenceImages, setReferenceImages] = useState<string[]>([]);
+    const [aspectRatioDialog, setAspectRatioDialog] = useState<{
+        open: boolean;
+        originalRatio: string;
+        adjustedRatio: string;
+        widthDiff: number;
+        heightDiff: number;
+        onConfirm: () => void;
+    } | null>(null);
 
     // Recent files
     const { recentFiles, addRecentFile } = useRecentFilesStore();
@@ -320,82 +333,154 @@ function App() {
             return;
         }
 
-        setIsGenerating(true);
-        setGenerationStage(0);
-        setError(null);
-
-        try {
-            // Validate image transform is available
-            if (!imageTransform) {
-                throw new Error('Image transform not available. Please reload the image.');
-            }
-
-            // Stage 1: Process selection to get cropped image and mask
-            setGenerationStage(0);
-            const processed = await processForAPI(
-                baseImage.data,
-                baseImage.format,
-                imageTransform,
-                baseImage.width,
-                baseImage.height
-            );
-
-            if (!processed) {
-                throw new Error('Failed to process selection');
-            }
-
-            // Stage 2: Call generate API
-            setGenerationStage(1);
-            const genResult = await generateFill(
-                model,
-                prompt,
-                processed.croppedImageBase64,
-                processed.maskBase64
-            );
-
-            if (!genResult.success || !genResult.image_base64) {
-                throw new Error(genResult.error || 'Generation failed');
-            }
-
-            // Stage 3: Apply polygon mask to result if this was a lasso selection
-            setGenerationStage(2);
-            let finalImageBase64 = genResult.image_base64;
-            if (processed.polygonMaskBase64) {
-                const { applyPolygonMaskToResult } = await import('./utils/selectionProcessor');
-                finalImageBase64 = await applyPolygonMaskToResult(
-                    genResult.image_base64,
-                    processed.polygonMaskBase64,
-                    processed.bounds.width,
-                    processed.bounds.height
+        // Check if aspect ratio adjustment is needed when reference images are used
+        if (referenceImages.length > 0) {
+            const selectionBounds = getSelectionBoundsCanvas(activeSelection);
+            if (selectionBounds) {
+                const adjustment = calculateAspectRatioAdjustment(
+                    selectionBounds.width,
+                    selectionBounds.height
                 );
+
+                if (adjustment.needsAdjustment) {
+                    // Show confirmation dialog
+                    setAspectRatioDialog({
+                        open: true,
+                        originalRatio: adjustment.originalRatio,
+                        adjustedRatio: adjustment.closestRatio,
+                        widthDiff: adjustment.adjustedWidth - adjustment.originalWidth,
+                        heightDiff: adjustment.adjustedHeight - adjustment.originalHeight,
+                        onConfirm: () => {
+                            setAspectRatioDialog(null);
+
+                            // Actually resize the selection to the adjusted dimensions
+                            // Get current selection properties
+                            const currentWidth = activeSelection.width * (activeSelection.scaleX || 1);
+                            const currentHeight = activeSelection.height * (activeSelection.scaleY || 1);
+
+                            // Calculate scale factors to achieve new dimensions
+                            const newScaleX = adjustment.adjustedWidth / activeSelection.width;
+                            const newScaleY = adjustment.adjustedHeight / activeSelection.height;
+
+                            // Center the expansion - adjust position
+                            const widthChange = adjustment.adjustedWidth - currentWidth;
+                            const heightChange = adjustment.adjustedHeight - currentHeight;
+
+                            // Apply the new size to the selection
+                            activeSelection.set({
+                                scaleX: newScaleX,
+                                scaleY: newScaleY,
+                                left: activeSelection.left - widthChange / 2,
+                                top: activeSelection.top - heightChange / 2,
+                            });
+                            activeSelection.setCoords();
+
+                            // Re-render the canvas to show the adjusted selection
+                            if (activeSelection.canvas) {
+                                activeSelection.canvas.renderAll();
+                            }
+
+                            // Update the selection store with the modified selection
+                            setActiveSelection(activeSelection);
+
+                            toast.info(`Selection adjusted to ${adjustment.closestRatio} ratio`);
+
+                            // Now proceed with generation using the resized selection
+                            doGenerate();
+                        }
+                    });
+                    return;
+                }
             }
+        }
 
-            // Add the generated patch as a new layer
-            addLayer({
-                name: `Edit: ${prompt.substring(0, 20)}${prompt.length > 20 ? '...' : ''}`,
-                type: 'edit',
-                imageData: finalImageBase64,
-                visible: true,
-                opacity: 100,
-                x: processed.bounds.x,
-                y: processed.bounds.y,
-                width: processed.bounds.width,
-                height: processed.bounds.height,
-                polygonPoints: processed.relativePolygonPoints,
-            });
+        // Proceed directly if no adjustment needed
+        doGenerate();
 
-            // Clear selection and switch to move tool
-            clearSelection();
-            setActiveTool('move');
+        async function doGenerate() {
+            setIsGenerating(true);
+            setGenerationStage(0);
+            setError(null);
 
-            toast.success('Generation complete! New layer added.');
+            try {
+                // Validate baseImage is available
+                if (!baseImage) {
+                    throw new Error('No image loaded.');
+                }
 
-        } catch (err) {
-            const message = err instanceof Error ? err.message : 'An unexpected error occurred';
-            setError(message);
-            toast.error(`Generation failed: ${message}`);
-        } finally {
-            setIsGenerating(false);
+                // Validate image transform is available
+                if (!imageTransform) {
+                    throw new Error('Image transform not available. Please reload the image.');
+                }
+
+                // Stage 1: Process selection to get cropped image and mask
+                setGenerationStage(0);
+                const processed = await processForAPI(
+                    baseImage.data,
+                    baseImage.format,
+                    imageTransform,
+                    baseImage.width,
+                    baseImage.height
+                );
+
+                if (!processed) {
+                    throw new Error('Failed to process selection');
+                }
+
+                // Stage 2: Call generate API with optional reference images
+                setGenerationStage(1);
+                const genResult = await generateFill(
+                    model,
+                    prompt,
+                    processed.croppedImageBase64,
+                    processed.maskBase64,
+                    referenceImages
+                );
+
+                if (!genResult.success || !genResult.image_base64) {
+                    throw new Error(genResult.error || 'Generation failed');
+                }
+
+                // Stage 3: Apply polygon mask to result if this was a lasso selection
+                setGenerationStage(2);
+                let finalImageBase64 = genResult.image_base64;
+                if (processed.polygonMaskBase64) {
+                    const { applyPolygonMaskToResult } = await import('./utils/selectionProcessor');
+                    finalImageBase64 = await applyPolygonMaskToResult(
+                        genResult.image_base64,
+                        processed.polygonMaskBase64,
+                        processed.bounds.width,
+                        processed.bounds.height
+                    );
+                }
+
+                // Add the generated patch as a new layer
+                addLayer({
+                    name: `Edit: ${prompt.substring(0, 20)}${prompt.length > 20 ? '...' : ''}`,
+                    type: 'edit',
+                    imageData: finalImageBase64,
+                    visible: true,
+                    opacity: 100,
+                    x: processed.bounds.x,
+                    y: processed.bounds.y,
+                    width: processed.bounds.width,
+                    height: processed.bounds.height,
+                    polygonPoints: processed.relativePolygonPoints,
+                });
+
+                // Clear selection and switch to move tool
+                clearSelection();
+                setActiveTool('move');
+
+                toast.success('Generation complete! New layer added.');
+
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+                setError(message);
+                toast.error(`Generation failed: ${message}`);
+            } finally {
+                setIsGenerating(false);
+            }
         }
     };
 
@@ -406,6 +491,19 @@ function App() {
 
             {/* Keyboard Shortcuts Modal */}
             <KeyboardShortcuts isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+
+            {/* Aspect Ratio Adjustment Dialog */}
+            {aspectRatioDialog && (
+                <ConfirmDialog
+                    isOpen={aspectRatioDialog.open}
+                    title="Selection Adjustment Required"
+                    message={`When using reference images, the selection must match a supported aspect ratio.\n\nYour selection: ${aspectRatioDialog.originalRatio}\nClosest supported: ${aspectRatioDialog.adjustedRatio}\n\nThe selection will be adjusted by ${aspectRatioDialog.widthDiff > 0 ? '+' : ''}${aspectRatioDialog.widthDiff}px width and ${aspectRatioDialog.heightDiff > 0 ? '+' : ''}${aspectRatioDialog.heightDiff}px height.\n\nProceed with adjusted selection?`}
+                    confirmText="Proceed"
+                    cancelText="Cancel"
+                    onConfirm={aspectRatioDialog.onConfirm}
+                    onCancel={() => setAspectRatioDialog(null)}
+                />
+            )}
 
             {/* Top Bar */}
             <header className="top-bar">
@@ -537,7 +635,7 @@ function App() {
                                 <img src="/rectangle.svg" alt="Rectangle" className="tool-icon" />
                             </button>
                         </Tooltip>
-                        <Tooltip content="Lasso Select" shortcut="L" position="right" description="Draw freeform selections">
+                        <Tooltip content="Lasso Select [BETA]" shortcut="L" position="right" description="Draw freeform selections">
                             <button
                                 className={`tool-btn ${activeTool === 'lasso' ? 'active' : ''}`}
                                 onClick={() => setActiveTool('lasso')}
@@ -632,6 +730,12 @@ function App() {
                                 </select>
                             </div>
 
+                            <ReferenceImages
+                                images={referenceImages}
+                                onChange={setReferenceImages}
+                                maxImages={3}
+                            />
+
                             {error && (
                                 <div className="error-message">{error}</div>
                             )}
@@ -698,7 +802,7 @@ function App() {
                         <Tooltip content="Current zoom level" position="top">
                             <span className="zoom-level">{Math.round(zoom)}%</span>
                         </Tooltip>
-                        <Tooltip content="Zoom In" shortcut="+" position="top">
+                        <Tooltip content="Zoom In" shortcut="+" position="left">
                             <button className="zoom-btn" onClick={zoomIn} aria-label="Zoom In">+</button>
                         </Tooltip>
                     </div>

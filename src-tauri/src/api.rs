@@ -72,7 +72,74 @@ struct InlineData {
 struct GenerationConfig {
     #[serde(rename = "responseModalities")]
     response_modalities: Vec<String>,
+    #[serde(rename = "imageConfig", skip_serializing_if = "Option::is_none")]
+    image_config: Option<ImageConfig>,
 }
+
+#[derive(Debug, Serialize)]
+struct ImageConfig {
+    #[serde(rename = "aspectRatio")]
+    aspect_ratio: String,
+}
+
+/// Get image dimensions from base64 PNG data
+fn get_image_dimensions(base64_data: &str) -> Option<(u32, u32)> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    
+    let bytes = STANDARD.decode(base64_data).ok()?;
+    
+    // PNG header check and dimension extraction
+    if bytes.len() < 24 {
+        return None;
+    }
+    
+    // Check PNG magic number
+    if &bytes[0..8] != &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] {
+        return None;
+    }
+    
+    // Width and height are at bytes 16-19 and 20-23 (big-endian)
+    let width = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
+    let height = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
+    
+    Some((width, height))
+}
+
+/// Calculate the closest supported aspect ratio for Gemini API
+/// Supported: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
+fn calculate_aspect_ratio(width: u32, height: u32) -> String {
+    let ratio = width as f64 / height as f64;
+    
+    // Supported aspect ratios from API docs
+    let ratios = [
+        (21.0 / 9.0, "21:9"),
+        (16.0 / 9.0, "16:9"),
+        (5.0 / 4.0, "5:4"),
+        (4.0 / 3.0, "4:3"),
+        (3.0 / 2.0, "3:2"),
+        (1.0, "1:1"),
+        (4.0 / 5.0, "4:5"),
+        (3.0 / 4.0, "3:4"),
+        (2.0 / 3.0, "2:3"),
+        (9.0 / 16.0, "9:16"),
+    ];
+    
+    // Find the closest ratio
+    let mut closest = "1:1";
+    let mut min_diff = f64::MAX;
+    
+    for (r, name) in ratios.iter() {
+        let diff = (ratio - r).abs();
+        if diff < min_diff {
+            min_diff = diff;
+            closest = name;
+        }
+    }
+    
+    log::info!("Image {}x{} ratio={:.3}, closest supported: {}", width, height, ratio, closest);
+    closest.to_string()
+}
+
 
 #[derive(Debug, Deserialize)]
 struct GeminiResponse {
@@ -129,12 +196,14 @@ impl NanoBananaClient {
     /// * `prompt` - Text description of what to generate
     /// * `image_base64` - The cropped source image as base64
     /// * `mask_base64` - The mask image as base64 (white = generate, black = keep)
+    /// * `reference_images` - Optional reference images to guide generation
     pub async fn generate_fill(
         &self,
         model: Model,
         prompt: &str,
         image_base64: &str,
         mask_base64: &str,
+        reference_images: &[&str],
     ) -> Result<String, ApiError> {
         let model_name = model.to_gemini_model();
         let url = format!(
@@ -142,37 +211,75 @@ impl NanoBananaClient {
             model_name, self.api_key
         );
 
-        // Build the request with image, mask, and prompt
+        // Build parts array starting with source image and mask
+        let mut parts = vec![
+            // Source image (primary - this is what we're editing)
+            Part::InlineData {
+                inline_data: InlineData {
+                    mime_type: "image/png".to_string(),
+                    data: image_base64.to_string(),
+                },
+            },
+            // Mask image
+            Part::InlineData {
+                inline_data: InlineData {
+                    mime_type: "image/png".to_string(),
+                    data: mask_base64.to_string(),
+                },
+            },
+        ];
+
+        // Add reference images if provided
+        for (i, ref_image) in reference_images.iter().enumerate() {
+            log::info!("Adding reference image {} ({} bytes)", i + 1, ref_image.len());
+            parts.push(Part::InlineData {
+                inline_data: InlineData {
+                    mime_type: "image/png".to_string(),
+                    data: ref_image.to_string(),
+                },
+            });
+        }
+
+        // Build prompt text based on whether we have reference images
+        let prompt_text = if reference_images.is_empty() {
+            format!(
+                "Edit this image. The second image is a mask where white areas should be replaced. \
+                In the white masked areas, generate: {}. \
+                Keep the black areas unchanged. Match the style and lighting of the original image.",
+                prompt
+            )
+        } else {
+            format!(
+                "Edit the first image. The second image is a mask where white areas should be replaced. \
+                The additional images are references to help guide the generation. \
+                In the white masked areas, generate: {}. \
+                Use the reference images as context for the generation. \
+                Keep the black areas unchanged.",
+                prompt
+            )
+        };
+
+        // Add prompt text
+        parts.push(Part::Text { text: prompt_text });
+
+        // Only set explicit aspect ratio when there are reference images
+        // (without refs, the API correctly infers from the single input image)
+        let image_config = if !reference_images.is_empty() {
+            get_image_dimensions(image_base64)
+                .map(|(w, h)| {
+                    let ratio = calculate_aspect_ratio(w, h);
+                    log::info!("Reference images present - setting aspectRatio to: {}", ratio);
+                    ImageConfig { aspect_ratio: ratio }
+                })
+        } else {
+            None
+        };
+
         let request = GeminiRequest {
-            contents: vec![Content {
-                parts: vec![
-                    // Source image
-                    Part::InlineData {
-                        inline_data: InlineData {
-                            mime_type: "image/png".to_string(),
-                            data: image_base64.to_string(),
-                        },
-                    },
-                    // Mask image
-                    Part::InlineData {
-                        inline_data: InlineData {
-                            mime_type: "image/png".to_string(),
-                            data: mask_base64.to_string(),
-                        },
-                    },
-                    // Prompt with instructions
-                    Part::Text {
-                        text: format!(
-                            "Edit this image. The second image is a mask where white areas should be replaced. \
-                            In the white masked areas, generate: {}. \
-                            Keep the black areas unchanged. Match the style and lighting of the original image.",
-                            prompt
-                        ),
-                    },
-                ],
-            }],
+            contents: vec![Content { parts }],
             generation_config: GenerationConfig {
                 response_modalities: vec!["IMAGE".to_string()],
+                image_config,
             },
         };
 

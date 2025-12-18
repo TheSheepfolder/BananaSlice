@@ -3,7 +3,7 @@
 
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import './KeyboardShortcuts.css';
+import './Modal.css';
 
 interface ShortcutItem {
     label: string;
@@ -77,38 +77,38 @@ export function KeyboardShortcuts({ isOpen, onClose }: KeyboardShortcutsProps) {
     if (!isOpen) return null;
 
     return createPortal(
-        <div className="shortcuts-modal-overlay" onClick={onClose}>
+        <div className="modal-overlay" onClick={onClose}>
             <div
-                className="shortcuts-modal"
+                className="modal-content md"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="shortcuts-title"
             >
-                <div className="shortcuts-modal-header">
-                    <h2 id="shortcuts-title">Keyboard Shortcuts</h2>
+                <div className="modal-header">
+                    <h2 className="modal-title" id="shortcuts-title">Keyboard Shortcuts</h2>
                     <button
-                        className="shortcuts-modal-close"
+                        className="modal-close"
                         onClick={onClose}
                         aria-label="Close"
                     >
                         ×
                     </button>
                 </div>
-                <div className="shortcuts-modal-body">
+                <div className="modal-body">
                     {shortcutSections.map((section) => (
-                        <div key={section.title} className="shortcuts-section">
-                            <h3 className="shortcuts-section-title">{section.title}</h3>
-                            <div className="shortcuts-list">
+                        <div key={section.title} className="modal-section">
+                            <h3 className="modal-section-title">{section.title}</h3>
+                            <div className="modal-list">
                                 {section.shortcuts.map((shortcut) => (
-                                    <div key={shortcut.label} className="shortcut-item">
-                                        <span className="shortcut-label">{shortcut.label}</span>
-                                        <div className="shortcut-keys">
+                                    <div key={shortcut.label} className="modal-list-item">
+                                        <span className="modal-item-label">{shortcut.label}</span>
+                                        <div className="modal-keys">
                                             {shortcut.keys.map((key, index) => (
-                                                <span key={key}>
-                                                    <span className="shortcut-key">{key}</span>
+                                                <span key={key} style={{ display: 'flex', alignItems: 'center' }}>
+                                                    <span className="modal-key">{key}</span>
                                                     {index < shortcut.keys.length - 1 && (
-                                                        <span className="shortcut-plus"> + </span>
+                                                        <span className="modal-key-separator">+</span>
                                                     )}
                                                 </span>
                                             ))}

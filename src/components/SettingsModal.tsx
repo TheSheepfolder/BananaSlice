@@ -1,7 +1,7 @@
 // Settings Modal Component
 import { useState, useEffect } from 'react';
 import { setApiKey, hasApiKey, deleteApiKey } from '../api';
-import './SettingsModal.css';
+import './Modal.css';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -57,9 +57,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content md" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
-                    <h2>Settings</h2>
+                    <h2 className="modal-title">Settings</h2>
                     <button className="modal-close" onClick={onClose}>×</button>
                 </div>
 
@@ -90,7 +90,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 className="api-key-input"
                             />
                             <button
-                                className="save-btn"
+                                className="modal-btn primary"
                                 onClick={handleSave}
                                 disabled={isSaving}
                             >
@@ -99,7 +99,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         </div>
 
                         {hasKey && (
-                            <button className="delete-btn" onClick={handleDelete}>
+                            <button className="modal-btn danger" style={{ background: 'transparent', color: '#ef4444', border: '1px solid currentColor', marginTop: '12px' }} onClick={handleDelete}>
                                 Delete API Key
                             </button>
                         )}

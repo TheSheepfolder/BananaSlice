@@ -3,7 +3,7 @@
 
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import './ConfirmDialog.css';
+import './Modal.css';
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -47,30 +47,30 @@ export function ConfirmDialog({
     if (!isOpen) return null;
 
     return createPortal(
-        <div className="confirm-dialog-overlay" onClick={onCancel}>
+        <div className="modal-overlay" onClick={onCancel}>
             <div
-                className="confirm-dialog"
+                className="modal-content sm"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="confirm-dialog-title"
             >
-                <div className="confirm-dialog-header">
-                    <h3 id="confirm-dialog-title">{title}</h3>
+                <div className="modal-header">
+                    <h3 className="modal-title" id="confirm-dialog-title">{title}</h3>
                 </div>
-                <div className="confirm-dialog-body">
-                    <p>{message}</p>
+                <div className="modal-body">
+                    <p className="modal-text pre-wrap">{message}</p>
                 </div>
-                <div className="confirm-dialog-footer">
+                <div className="modal-footer">
                     <button
-                        className="confirm-dialog-btn cancel"
+                        className="modal-btn secondary"
                         onClick={onCancel}
                     >
                         {cancelText}
                     </button>
                     <button
                         ref={confirmButtonRef}
-                        className={`confirm-dialog-btn ${variant === 'danger' ? 'danger' : 'confirm'}`}
+                        className={`modal-btn ${variant === 'danger' ? 'danger' : 'primary'}`}
                         onClick={onConfirm}
                     >
                         {confirmText}

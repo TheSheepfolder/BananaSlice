@@ -14,6 +14,8 @@ pub struct GenerateRequest {
     pub prompt: String,
     pub image_base64: String,
     pub mask_base64: String,
+    #[serde(default)]
+    pub reference_images: Vec<String>, // Optional reference images as base64
 }
 
 #[derive(Debug, Serialize)]
@@ -73,8 +75,11 @@ pub async fn generate_fill(request: GenerateRequest) -> GenerateResponse {
     // Create client and make request
     let client = NanoBananaClient::new(api_key);
     
+    // Convert reference images to &str slices
+    let ref_images: Vec<&str> = request.reference_images.iter().map(|s| s.as_str()).collect();
+    
     match client
-        .generate_fill(model, &request.prompt, &request.image_base64, &request.mask_base64)
+        .generate_fill(model, &request.prompt, &request.image_base64, &request.mask_base64, &ref_images)
         .await
     {
         Ok(image_base64) => {
