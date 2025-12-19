@@ -531,7 +531,7 @@ function App() {
                 <div className="top-bar-left">
                     <img src="/logo.png" alt="BananaSlice" className="app-logo" />
                     <span className="app-title">BananaSlice</span>
-                    <span className="app-version">v0.1.0</span>
+                    <span className="app-version">v{__APP_VERSION__}</span>
                 </div>
                 <div className="top-bar-center">
                     <div className="menu-container" ref={fileMenuRef}>
