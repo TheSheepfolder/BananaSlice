@@ -33,7 +33,7 @@ if (fs.existsSync(cargoPath)) {
 const cargoLockPath = path.resolve(rootPath, 'src-tauri/Cargo.lock');
 if (fs.existsSync(cargoLockPath)) {
     let cargoLock = fs.readFileSync(cargoLockPath, 'utf8');
-    const regex = /(name = "bananaslice"\r?\nversion = ")[\d.]+/;
+    const regex = /(name = "BananaSlice"\r?\nversion = ")[\d.]+/;
     if (regex.test(cargoLock)) {
         cargoLock = cargoLock.replace(regex, `$1${version}`);
         fs.writeFileSync(cargoLockPath, cargoLock);

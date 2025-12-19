@@ -22,6 +22,8 @@ interface HistoryState {
     redo: () => void;
     canUndo: () => boolean;
     canRedo: () => boolean;
+    isDirty: boolean;
+    markSaved: () => void;
     reset: () => void;
 
     _recordState: (layers: Layer[], activeLayerId: string | null) => void;
@@ -64,6 +66,7 @@ export const useHistoryStore = create<HistoryState>()(
         future: [],
         maxHistorySize: 50,
         isTimeTraveling: false,
+        isDirty: false,
 
         _recordState: (layers, activeLayerId) => {
             const { past, maxHistorySize, isTimeTraveling } = get();
@@ -91,7 +94,12 @@ export const useHistoryStore = create<HistoryState>()(
             set({
                 past: newPast,
                 future: [],
+                isDirty: true,
             });
+        },
+
+        markSaved: () => {
+            set({ isDirty: false });
         },
 
         _setTimeTraveling: (value) => {
@@ -149,7 +157,7 @@ export const useHistoryStore = create<HistoryState>()(
         canRedo: () => get().future.length > 0,
 
         reset: () => {
-            set({ past: [], future: [], isTimeTraveling: false });
+            set({ past: [], future: [], isTimeTraveling: false, isDirty: false });
         },
     }))
 );

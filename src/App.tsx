@@ -113,14 +113,14 @@ function App() {
         invoke<AppInfo>('get_app_info').catch(console.error);
     }, []);
 
-    // Check for unsaved changes (history has more than 1 state = changes made)
-    const hasUnsavedChanges = canUndo();
+    // Check for unsaved changes (from history store)
+    const isDirty = useHistoryStore(state => state.isDirty);
 
     // Update window title dynamically (with asterisk for unsaved changes)
     useEffect(() => {
         const setWindowTitle = async () => {
             const window = getCurrentWindow();
-            const unsavedMarker = hasUnsavedChanges ? '*' : '';
+            const unsavedMarker = isDirty ? '*' : '';
 
             if (!baseImage) {
                 // Nothing open
@@ -137,7 +137,7 @@ function App() {
         };
 
         setWindowTitle().catch(console.error);
-    }, [baseImage, imagePath, hasUnsavedChanges]);
+    }, [baseImage, imagePath, isDirty]);
 
     // Initialize base layer when a NEW image is loaded (skip for project files)
     useEffect(() => {

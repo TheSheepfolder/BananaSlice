@@ -65,6 +65,7 @@ export const quickSave = async (): Promise<boolean> => {
 
     const projectData = buildProjectData();
     await writeTextFile(currentPath, JSON.stringify(projectData, null, 2));
+    useHistoryStore.getState().markSaved();
     return true;
 };
 
@@ -87,6 +88,7 @@ export const saveProjectAs = async (): Promise<string | null> => {
             useCanvasStore.getState().baseImage!,
             filePath
         );
+        useHistoryStore.getState().markSaved();
         return filePath;
     }
 
