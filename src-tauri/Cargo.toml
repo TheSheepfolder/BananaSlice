@@ -1,5 +1,5 @@
 [package]
-name = "bananaslice"
+name = "BananaSlice"
 version = "0.1.0"
 description = "A Generative Fill Desktop App"
 authors = ["Irfanul Majumder"]
@@ -26,7 +26,7 @@ tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
-keyring = { version = "3", features = ["windows-native"] }
+keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native"] }
 
 # Image processing
 image = "0.25"
