@@ -1,10 +1,20 @@
 ### <img src="public/logo_cropped.png" width="64" alt="BananaSlice Logo">
 
 # BananaSlice
-Open-Source Generative Fill Image Editing Application using Nano Banana & Nano Banana Pro
+Open-Source alternative to Adobe Photoshop's Generative Fill using Nano Banana & Nano Banana Pro
 
 [![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-yellow.svg)](https://github.com/IrfanulM/BananaSlice/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- **AI-Powered Generative Fill**: Fill selections using Google Gemini's Nano Banana and Nano Banana Pro models
+- **Layer-Based Editing**: Non-destructive workflow with layer visibility, opacity, and reordering
+- **Multiple Selection Tools**: Rectangle, lasso, and shape-based selections
+- **Project Files**: Save and load projects with full layer history (`.banslice` format)
+- **Reference Images**: Guide AI generation with optional reference images
+- **Secure API Storage**: API keys encrypted via OS native keychain
+- **Cross-Platform**: Available for Windows, macOS, and Linux
 
 ## Tech Stack
 
