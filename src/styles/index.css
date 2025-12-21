@@ -610,6 +610,21 @@ button:focus-visible {
     cursor: pointer;
 }
 
+.select-input {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding-right: 28px;
+    background-image: url("/chevron-down.svg");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 12px;
+}
+
+.select-input:hover {
+    border-color: var(--border-strong);
+}
+
 .select-input:focus,
 .text-input:focus {
     border-color: var(--accent-primary);
