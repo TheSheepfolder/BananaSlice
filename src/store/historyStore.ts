@@ -60,6 +60,9 @@ const statesAreDifferent = (a: Layer[], b: Layer[]): boolean => {
     return false;
 };
 
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const DEBOUNCE_MS = 100;
+
 export const useHistoryStore = create<HistoryState>()(
     subscribeWithSelector((set, get) => ({
         past: [],
@@ -157,14 +160,15 @@ export const useHistoryStore = create<HistoryState>()(
         canRedo: () => get().future.length > 0,
 
         reset: () => {
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+                debounceTimer = null;
+            }
             set({ past: [], future: [], isTimeTraveling: false, isDirty: false });
         },
     }))
 );
 
-// Layer store subscription for automatic history recording
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-const DEBOUNCE_MS = 100;
 
 let prevLayers: Layer[] = [];
 let prevActiveLayerId: string | null = null;

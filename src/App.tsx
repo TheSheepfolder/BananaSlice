@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, type CloseRequestedEvent } from '@tauri-apps/api/window';
 import { Canvas } from './components/Canvas';
 import { SettingsModal } from './components/SettingsModal';
 import { LayerPanel } from './components/LayerPanel';
@@ -86,6 +86,7 @@ function App() {
         heightDiff: number;
         onConfirm: () => void;
     } | null>(null);
+    const [closeConfirmDialog, setCloseConfirmDialog] = useState(false);
 
     // Recent files
     const { recentFiles, addRecentFile } = useRecentFilesStore();
@@ -138,6 +139,23 @@ function App() {
 
         setWindowTitle().catch(console.error);
     }, [baseImage, imagePath, isDirty]);
+
+    useEffect(() => {
+        const appWindow = getCurrentWindow();
+
+        const unlisten = appWindow.onCloseRequested((event: CloseRequestedEvent) => {
+            const hasUnsavedChanges = useHistoryStore.getState().isDirty;
+
+            if (hasUnsavedChanges) {
+                event.preventDefault();
+                setCloseConfirmDialog(true);
+            }
+        });
+
+        return () => {
+            unlisten.then(fn => fn());
+        };
+    }, []);
 
     // Initialize base layer when a NEW image is loaded (skip for project files)
     useEffect(() => {
@@ -526,6 +544,22 @@ function App() {
                     onCancel={() => setAspectRatioDialog(null)}
                 />
             )}
+
+            {/* Unsaved Changes Close Confirmation Dialog */}
+            <ConfirmDialog
+                isOpen={closeConfirmDialog}
+                title="Unsaved Changes"
+                message="This project has unsaved changes. Are you sure you want to close without saving?"
+                confirmText="Discard & Close"
+                cancelText="Cancel"
+                variant="danger"
+                onConfirm={async () => {
+                    setCloseConfirmDialog(false);
+                    const appWindow = getCurrentWindow();
+                    await appWindow.destroy();
+                }}
+                onCancel={() => setCloseConfirmDialog(false)}
+            />
 
             {/* Top Bar */}
             <header className="top-bar">
