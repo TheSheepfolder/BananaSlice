@@ -97,7 +97,7 @@ export const useHistoryStore = create<HistoryState>()(
             set({
                 past: newPast,
                 future: [],
-                isDirty: true,
+                isDirty: past.length > 0,
             });
         },
 

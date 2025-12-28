@@ -20,7 +20,7 @@ import { useHistoryStore } from './store/historyStore';
 import { useSettingsStore } from './store/settingsStore';
 import { useRecentFilesStore } from './store/recentFilesStore';
 import { generateFill, hasApiKey } from './api';
-import { saveProject, loadProject, quickSave } from './utils/projectManager';
+import { saveProject, loadProject, loadProjectFromPath, quickSave } from './utils/projectManager';
 import { exportImage } from './utils/exportManager';
 import { compositeLayersInBrowser } from './utils/layerCompositor';
 import { calculateAspectRatioAdjustment } from './utils/aspectRatio';
@@ -156,6 +156,46 @@ function App() {
             unlisten.then(fn => fn());
         };
     }, []);
+
+    // Handle file drag and drop
+    useEffect(() => {
+        const appWindow = getCurrentWindow();
+        const supportedImageExtensions = ['png', 'jpg', 'jpeg', 'webp'];
+
+        const unlisten = appWindow.onDragDropEvent((event) => {
+            if (event.payload.type !== 'drop') return;
+
+            const paths = event.payload.paths;
+            if (!paths || paths.length === 0) return;
+
+            const filePath = paths[0];
+            const extension = filePath.split('.').pop()?.toLowerCase() || '';
+
+            if (extension === 'banslice') {
+                loadProjectFromPath(filePath).then(result => {
+                    if (result.success) {
+                        toast.success('Project loaded');
+                        if (result.path) addRecentFile(result.path, 'project');
+                    } else if (result.error) {
+                        toast.error(`Failed to load project: ${result.error}`);
+                    }
+                });
+            } else if (supportedImageExtensions.includes(extension)) {
+                loadImage(filePath).then(() => {
+                    addRecentFile(filePath, 'image');
+                    toast.success('Image loaded');
+                }).catch(err => {
+                    toast.error(`Failed to load image: ${err.message || 'Unknown error'}`);
+                });
+            } else {
+                toast.error('Unsupported file type. Drop an image (PNG, JPG, WebP) or project (.banslice)');
+            }
+        });
+
+        return () => {
+            unlisten.then(fn => fn());
+        };
+    }, [loadImage, addRecentFile]);
 
     // Initialize base layer when a NEW image is loaded (skip for project files)
     useEffect(() => {

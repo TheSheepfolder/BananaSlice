@@ -98,6 +98,44 @@ export const saveProjectAs = async (): Promise<string | null> => {
 // Legacy alias
 export const saveProject = saveProjectAs;
 
+export const loadProjectFromPath = async (filePath: string): Promise<{ success: boolean; error?: string; path?: string }> => {
+    try {
+        const content = await readTextFile(filePath);
+        const data: ProjectFile = JSON.parse(content);
+
+        if (data.meta?.appName !== 'BananaSlice') {
+            return { success: false, error: 'Invalid project file' };
+        }
+
+        const canvasStore = useCanvasStore.getState();
+        const layerStore = useLayerStore.getState();
+
+        if (data.baseImage) {
+            const imageData = {
+                data: data.baseImage.data,
+                width: data.baseImage.width,
+                height: data.baseImage.height,
+                format: data.baseImage.format
+            };
+            canvasStore.setBaseImage(imageData, filePath);
+        }
+
+        canvasStore.setZoom(data.canvas.zoom);
+        canvasStore.setPan(data.canvas.panX, data.canvas.panY);
+
+        if (data.layers && data.layers.length > 0) {
+            layerStore.restoreLayers(data.layers, data.layers[0].id);
+        }
+
+        useHistoryStore.getState().reset();
+
+        return { success: true, path: filePath };
+    } catch (err) {
+        console.error('Failed to load project:', err);
+        return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    }
+};
+
 export const loadProject = async (): Promise<{ success: boolean; error?: string; path?: string }> => {
     const filePath = await open({
         filters: [{
@@ -111,45 +149,5 @@ export const loadProject = async (): Promise<{ success: boolean; error?: string;
         return { success: false };
     }
 
-    try {
-        const content = await readTextFile(filePath);
-        const data: ProjectFile = JSON.parse(content);
-
-        if (data.meta?.appName !== 'BananaSlice') {
-            return { success: false, error: 'Invalid project file' };
-        }
-
-        const canvasStore = useCanvasStore.getState();
-        const layerStore = useLayerStore.getState();
-
-        // Restore base image
-        if (data.baseImage) {
-            const imageData = {
-                data: data.baseImage.data,
-                width: data.baseImage.width,
-                height: data.baseImage.height,
-                format: data.baseImage.format
-            };
-            // Use special project path to prevent App.tsx from resetting layers
-            canvasStore.setBaseImage(imageData, filePath);
-        }
-
-        // Restore canvas state
-        canvasStore.setZoom(data.canvas.zoom);
-        canvasStore.setPan(data.canvas.panX, data.canvas.panY);
-
-        // Restore layers immediately
-        // The Canvas component will recreate fabric objects when it processes the layers
-        if (data.layers && data.layers.length > 0) {
-            layerStore.restoreLayers(data.layers, data.layers[0].id);
-        }
-
-        // Reset history for the new project
-        useHistoryStore.getState().reset();
-
-        return { success: true, path: filePath };
-    } catch (err) {
-        console.error('Failed to load project:', err);
-        return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
-    }
+    return loadProjectFromPath(filePath);
 };
