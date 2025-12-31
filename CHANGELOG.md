@@ -4,6 +4,15 @@ All notable changes to BananaSlice will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.2] - 2025-12-31
+
+### Added
+- Disclaimer message for closing projects with unsaved changes
+
+### Changed
+- Drag-and-drop support for reference image slots + canvas images/projects
+- Removed sequential ordering from reference image slots
+
 ## [0.1.1] - 2025-12-22
 
 ### Changed
