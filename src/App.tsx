@@ -78,6 +78,7 @@ function App() {
     const [isSaving, setIsSaving] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [referenceImages, setReferenceImages] = useState<string[]>([]);
+    const [dragHoverSlot, setDragHoverSlot] = useState<number | null>(null);
     const [aspectRatioDialog, setAspectRatioDialog] = useState<{
         open: boolean;
         originalRatio: string;
@@ -162,15 +163,82 @@ function App() {
         const appWindow = getCurrentWindow();
         const supportedImageExtensions = ['png', 'jpg', 'jpeg', 'webp'];
 
-        const unlisten = appWindow.onDragDropEvent((event) => {
-            if (event.payload.type !== 'drop') return;
+        const findReferenceSlot = (x: number, y: number): number | null => {
+            const element = document.elementFromPoint(x, y);
+            if (!element) return null;
+
+            const slot = element.closest('[data-reference-slot]');
+            if (slot) {
+                const index = slot.getAttribute('data-reference-slot');
+                return index !== null ? parseInt(index, 10) : null;
+            }
+            return null;
+        };
+
+        const loadImageAsBase64 = async (filePath: string): Promise<string | null> => {
+            try {
+                const { readFile } = await import('@tauri-apps/plugin-fs');
+                const bytes = await readFile(filePath);
+                const base64 = btoa(
+                    Array.from(bytes)
+                        .map(byte => String.fromCharCode(byte))
+                        .join('')
+                );
+                return base64;
+            } catch (err) {
+                console.error('Failed to read image file:', err);
+                return null;
+            }
+        };
+
+        const unlisten = appWindow.onDragDropEvent(async (event) => {
+            const eventType = event.payload.type;
+
+            // Handle hover events to show visual feedback
+            if (eventType === 'over') {
+                const pos = event.payload.position;
+                const slotIndex = findReferenceSlot(pos.x, pos.y);
+                setDragHoverSlot(slotIndex);
+                return;
+            }
+
+            // Clear hover state on leave
+            if (eventType === 'leave') {
+                setDragHoverSlot(null);
+                return;
+            }
+
+            if (eventType !== 'drop') return;
+
+            // Clear hover state on drop
+            setDragHoverSlot(null);
 
             const paths = event.payload.paths;
             if (!paths || paths.length === 0) return;
 
             const filePath = paths[0];
             const extension = filePath.split('.').pop()?.toLowerCase() || '';
+            const dropPosition = event.payload.position;
 
+            // Check if dropping on a reference image slot
+            if (supportedImageExtensions.includes(extension) && dropPosition) {
+                const slotIndex = findReferenceSlot(dropPosition.x, dropPosition.y);
+                if (slotIndex !== null) {
+                    const base64 = await loadImageAsBase64(filePath);
+                    if (base64) {
+                        const newImages = [...referenceImages];
+                        while (newImages.length < 3) {
+                            newImages.push('');
+                        }
+                        newImages[slotIndex] = base64;
+                        setReferenceImages(newImages);
+                        toast.success('Reference image added');
+                    }
+                    return;
+                }
+            }
+
+            // Standard drop handling
             if (extension === 'banslice') {
                 loadProjectFromPath(filePath).then(result => {
                     if (result.success) {
@@ -195,7 +263,7 @@ function App() {
         return () => {
             unlisten.then(fn => fn());
         };
-    }, [loadImage, addRecentFile]);
+    }, [loadImage, addRecentFile, referenceImages, setReferenceImages]);
 
     // Initialize base layer when a NEW image is loaded (skip for project files)
     useEffect(() => {
@@ -400,7 +468,8 @@ function App() {
         }
 
         // Check if aspect ratio adjustment is needed when reference images are used
-        if (referenceImages.length > 0) {
+        const activeReferenceImages = referenceImages.filter(img => img !== '');
+        if (activeReferenceImages.length > 0) {
             const selectionBounds = getSelectionBoundsCanvas(activeSelection);
             if (selectionBounds) {
                 const adjustment = calculateAspectRatioAdjustment(
@@ -513,7 +582,7 @@ function App() {
                     prompt,
                     processed.croppedImageBase64,
                     processed.maskBase64,
-                    referenceImages
+                    referenceImages.filter(img => img !== '')
                 );
 
                 if (!genResult.success || !genResult.image_base64) {
@@ -861,6 +930,7 @@ function App() {
                                 images={referenceImages}
                                 onChange={setReferenceImages}
                                 maxImages={3}
+                                externalDragHoverIndex={dragHoverSlot}
                             />
 
                             {error && (

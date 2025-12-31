@@ -30,10 +30,8 @@
 
 /* Drag over state */
 .reference-slot.drag-over {
-    border-color: #f59e0b;
-    border-style: solid;
-    background: rgba(245, 158, 11, 0.1);
-    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+    border-color: var(--accent-primary);
+    background: var(--surface-hover);
 }
 
 /* Empty slot icon */

@@ -7,12 +7,13 @@ import { readFile } from '@tauri-apps/plugin-fs';
 import './ReferenceImages.css';
 
 interface ReferenceImagesProps {
-    images: string[]; // base64 images
+    images: string[];
     onChange: (images: string[]) => void;
     maxImages?: number;
+    externalDragHoverIndex?: number | null;
 }
 
-export function ReferenceImages({ images, onChange, maxImages = 3 }: ReferenceImagesProps) {
+export function ReferenceImages({ images, onChange, maxImages = 3, externalDragHoverIndex }: ReferenceImagesProps) {
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
     // Handle file selection via dialog
@@ -37,7 +38,6 @@ export function ReferenceImages({ images, onChange, maxImages = 3 }: ReferenceIm
         }
     };
 
-    // Load image file and add to specific slot
     const loadImageToSlot = async (path: string, index: number) => {
         try {
             const bytes = await readFile(path);
@@ -48,23 +48,23 @@ export function ReferenceImages({ images, onChange, maxImages = 3 }: ReferenceIm
             );
 
             const newImages = [...images];
-            // Ensure array is long enough
-            while (newImages.length <= index) {
+            while (newImages.length < maxImages) {
                 newImages.push('');
             }
             newImages[index] = base64;
-
-            // Filter out empty strings for clean array
-            onChange(newImages.filter(img => img !== ''));
+            onChange(newImages);
         } catch (err) {
             console.error('Failed to read image:', path, err);
         }
     };
 
-    // Handle removing an image
     const handleRemove = (index: number, e: React.MouseEvent) => {
         e.stopPropagation();
-        const newImages = images.filter((_, i) => i !== index);
+        const newImages = [...images];
+        while (newImages.length < maxImages) {
+            newImages.push('');
+        }
+        newImages[index] = '';
         onChange(newImages);
     };
 
@@ -88,39 +88,36 @@ export function ReferenceImages({ images, onChange, maxImages = 3 }: ReferenceIm
         e.stopPropagation();
         setDragOverIndex(null);
 
-        // Handle dropped files
         const files = e.dataTransfer.files;
         if (files.length > 0) {
             const file = files[0];
             if (file.type.startsWith('image/')) {
-                // Read file as base64
                 const reader = new FileReader();
                 reader.onload = () => {
                     const result = reader.result as string;
-                    // Remove data URL prefix to get just base64
                     const base64 = result.split(',')[1];
 
                     const newImages = [...images];
-                    while (newImages.length <= index) {
+                    while (newImages.length < maxImages) {
                         newImages.push('');
                     }
                     newImages[index] = base64;
-                    onChange(newImages.filter(img => img !== ''));
+                    onChange(newImages);
                 };
                 reader.readAsDataURL(file);
             }
         }
     };
 
-    // Render individual slot
     const renderSlot = (index: number) => {
         const image = images[index];
-        const isDragOver = dragOverIndex === index;
+        const isDragOver = dragOverIndex === index || externalDragHoverIndex === index;
 
         return (
             <div
                 key={index}
                 className={`reference-slot ${image ? 'filled' : ''} ${isDragOver ? 'drag-over' : ''}`}
+                data-reference-slot={index}
                 onClick={() => handleSlotClick(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDragLeave={handleDragLeave}
