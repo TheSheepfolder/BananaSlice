@@ -4,6 +4,12 @@ All notable changes to BananaSlice will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.3] - 2025-01-12
+
+### Added
+- Export individual layers
+- Project tabs allowing for multiple projects to be open at the same time
+
 ## [0.1.2] - 2025-12-31
 
 ### Added
