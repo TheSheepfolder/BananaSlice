@@ -70,6 +70,8 @@ export const exportImage = async (options: ExportOptions): Promise<string | null
                     const featheredImage = await applyLayerFeathering(layer);
                     if (featheredImage) {
                         layerData = featheredImage;
+                    } else {
+                        layerData = layer.originalImageData;
                     }
                 } else if (layer.polygonPoints && layer.polygonPoints.length >= 3) {
                     const sharpImage = await applySharpPolygonMask(layer);
