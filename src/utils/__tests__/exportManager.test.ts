@@ -21,21 +21,7 @@ vi.mock('../layerCompositor', async (importOriginal) => {
 });
 
 describe('Export Manager - Feathered Layers', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        useCanvasStore.getState().clearImage();
-        useLayerStore.getState().clearLayers();
-    });
-
-    it('uses feathered data when exporting layers with feather radius', async () => {
-        const { save } = await import('@tauri-apps/plugin-dialog');
-        const { writeFile } = await import('@tauri-apps/plugin-fs');
-        const compositor = await import('../layerCompositor');
-        const { exportImage } = await import('../exportManager');
-
-        (save as any).mockResolvedValue('/tmp/export.png');
-        (compositor.applyLayerFeathering as any).mockResolvedValue('FEATHERED_DATA');
-
+    const prepareExportState = () => {
         const baseImage = { data: 'BASE_DATA', width: 200, height: 150, format: 'png' };
         useCanvasStore.getState().setBaseImage(baseImage, '/tmp/source.png');
 
@@ -76,8 +62,13 @@ describe('Export Manager - Feathered Layers', () => {
 
         useLayerStore.getState().restoreLayers([baseLayer, featherLayer], null);
 
+        return { featherLayer };
+    };
+
+    const captureImageSources = () => {
         const originalImage = globalThis.Image;
         const srcValues: string[] = [];
+
         class TestImage {
             onload: (() => void) | null = null;
             onerror: (() => void) | null = null;
@@ -100,6 +91,32 @@ describe('Export Manager - Feathered Layers', () => {
 
         globalThis.Image = TestImage as any;
 
+        return {
+            srcValues,
+            restore: () => {
+                globalThis.Image = originalImage;
+            },
+        };
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        useCanvasStore.getState().clearImage();
+        useLayerStore.getState().clearLayers();
+    });
+
+    it('uses feathered data when exporting layers with feather radius', async () => {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { writeFile } = await import('@tauri-apps/plugin-fs');
+        const compositor = await import('../layerCompositor');
+        const { exportImage } = await import('../exportManager');
+
+        (save as any).mockResolvedValue('/tmp/export.png');
+        (compositor.applyLayerFeathering as any).mockResolvedValue('FEATHERED_DATA');
+
+        prepareExportState();
+        const { srcValues, restore } = captureImageSources();
+
         await exportImage({ format: 'png' });
 
         expect(compositor.applyLayerFeathering).toHaveBeenCalledWith(
@@ -109,6 +126,30 @@ describe('Export Manager - Feathered Layers', () => {
         expect(srcValues).toContain('data:image/png;base64,FEATHERED_DATA');
         expect(writeFile).toHaveBeenCalled();
 
-        globalThis.Image = originalImage;
+        restore();
+    });
+
+    it('falls back to original data when feathering fails', async () => {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const compositor = await import('../layerCompositor');
+        const { exportImage } = await import('../exportManager');
+
+        (save as any).mockResolvedValue('/tmp/export.png');
+        (compositor.applyLayerFeathering as any).mockResolvedValue(null);
+
+        prepareExportState();
+        const { srcValues, restore } = captureImageSources();
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        await exportImage({ format: 'png' });
+
+        expect(compositor.applyLayerFeathering).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'layer-1' })
+        );
+        expect(srcValues).toContain('data:image/png;base64,ORIGINAL_DATA');
+        expect(warnSpy).toHaveBeenCalledWith('Failed to apply feathering for layer:', 'layer-1');
+
+        warnSpy.mockRestore();
+        restore();
     });
 });

@@ -71,6 +71,7 @@ export const exportImage = async (options: ExportOptions): Promise<string | null
                     if (featheredImage) {
                         layerData = featheredImage;
                     } else {
+                        console.warn('Failed to apply feathering for layer:', layer.id);
                         layerData = layer.originalImageData;
                     }
                 } else if (layer.polygonPoints && layer.polygonPoints.length >= 3) {
