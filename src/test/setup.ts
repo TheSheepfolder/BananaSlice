@@ -16,6 +16,7 @@ const mockContext = {
 };
 
 window.HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(mockContext);
+window.HTMLCanvasElement.prototype.toDataURL = vi.fn().mockReturnValue('data:image/png;base64,');
 (window as any).CanvasRenderingContext2D = vi.fn().mockImplementation(() => mockContext);
 
 // Image Mock
