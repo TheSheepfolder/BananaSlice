@@ -5,7 +5,6 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { useCanvasStore } from '../store/canvasStore';
 import { useLayerStore } from '../store/layerStore';
-import { applyLayerFeathering, applySharpPolygonMask } from './layerCompositor';
 
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
 
@@ -63,31 +62,7 @@ export const exportImage = async (options: ExportOptions): Promise<string | null
         if (!layer.visible) continue; // Skip hidden layers
 
         try {
-            let layerData = layer.imageData;
-            if (layer.originalImageData) {
-                const featherRadius = layer.featherRadius ?? 0;
-                if (featherRadius > 0) {
-                    const featheredImage = await applyLayerFeathering(layer);
-                    if (featheredImage) {
-                        layerData = featheredImage;
-                    } else {
-                        console.warn('Failed to apply feathering for layer:', layer.id);
-                        layerData = layer.originalImageData;
-                    }
-                } else if (layer.polygonPoints && layer.polygonPoints.length >= 3) {
-                    const sharpImage = await applySharpPolygonMask(layer);
-                    if (sharpImage) {
-                        layerData = sharpImage;
-                    }
-                } else {
-                    layerData = layer.originalImageData;
-                }
-            }
-
-            const dataUrl = layerData.startsWith('data:')
-                ? layerData
-                : `data:image/png;base64,${layerData}`;
-            const layerImg = await loadImage(dataUrl);
+            const layerImg = await loadImage(`data:image/png;base64,${layer.imageData}`);
 
             // Apply opacity
             ctx.globalAlpha = layer.opacity / 100;
@@ -216,3 +191,4 @@ export const exportLayerImage = async (layerId: string): Promise<string | null> 
 
     return filePath;
 };
+
