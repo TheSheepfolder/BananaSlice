@@ -60,19 +60,31 @@ async function createFeatheredMask(
     ctx.closePath();
     ctx.fill();
 
-    // Apply blur for soft edge fade
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = width;
-    tempCanvas.height = height;
-    const tempCtx = tempCanvas.getContext('2d')!;
+    // Apply blur for soft edge fade.
+    // Blur needs padding around the mask to avoid clipping at layer bounds.
+    const blurPadding = Math.max(1, Math.ceil(featherRadius * 2));
+    const paddedCanvas = document.createElement('canvas');
+    paddedCanvas.width = width + (blurPadding * 2);
+    paddedCanvas.height = height + (blurPadding * 2);
+    const paddedCtx = paddedCanvas.getContext('2d')!;
 
-    tempCtx.filter = `blur(${featherRadius}px)`;
-    tempCtx.drawImage(maskCanvas, 0, 0);
+    paddedCtx.filter = `blur(${featherRadius}px)`;
+    paddedCtx.drawImage(maskCanvas, blurPadding, blurPadding);
 
-    // Copy blurred result back
+    // Copy the center region back to the original mask size.
     ctx.clearRect(0, 0, width, height);
     ctx.filter = 'none';
-    ctx.drawImage(tempCanvas, 0, 0);
+    ctx.drawImage(
+        paddedCanvas,
+        blurPadding,
+        blurPadding,
+        width,
+        height,
+        0,
+        0,
+        width,
+        height
+    );
 
     return maskCanvas;
 }
