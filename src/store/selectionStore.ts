@@ -23,7 +23,8 @@ interface SelectionState {
         imageFormat: string,
         imageTransform: ImageTransform,
         imageWidth: number,
-        imageHeight: number
+        imageHeight: number,
+        useFullImageContext?: boolean
     ) => Promise<ProcessedSelection | null>;
 }
 
@@ -42,7 +43,7 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
         processedSelection: null
     }),
 
-    processForAPI: async (imageBase64, imageFormat, imageTransform, imageWidth, imageHeight) => {
+    processForAPI: async (imageBase64, imageFormat, imageTransform, imageWidth, imageHeight, useFullImageContext = false) => {
         const { activeSelection } = get();
 
         if (!activeSelection) {
@@ -59,7 +60,8 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
                 imageFormat,
                 imageTransform,
                 imageWidth,
-                imageHeight
+                imageHeight,
+                useFullImageContext
             );
 
             set({

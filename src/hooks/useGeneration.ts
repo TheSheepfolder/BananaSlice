@@ -26,6 +26,7 @@ interface AspectRatioDialogState {
 interface UseGenerationOptions {
     prompt: string;
     referenceImages: string[];
+    useFullImageContext: boolean;
     onOpenSettings: () => void;
 }
 
@@ -36,7 +37,7 @@ const generationStages = [
     'Applying result',
 ];
 
-export function useGeneration({ prompt, referenceImages, onOpenSettings }: UseGenerationOptions) {
+export function useGeneration({ prompt, referenceImages, useFullImageContext, onOpenSettings }: UseGenerationOptions) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [generationStage, setGenerationStage] = useState(0);
     const [error, setError] = useState<string | null>(null);
@@ -94,7 +95,8 @@ export function useGeneration({ prompt, referenceImages, onOpenSettings }: UseGe
                 'png', // Composite is always PNG
                 imageTransform,
                 baseImage.width,
-                baseImage.height
+                baseImage.height,
+                useFullImageContext
             );
 
             if (!processed) {
@@ -180,6 +182,11 @@ export function useGeneration({ prompt, referenceImages, onOpenSettings }: UseGe
         // Check if aspect ratio adjustment is needed when reference images are used
         const activeReferenceImages = referenceImages.filter(img => img !== '');
         if (activeReferenceImages.length > 0) {
+            if (useFullImageContext) {
+                doGenerate();
+                return;
+            }
+
             const selectionBounds = getSelectionBoundsCanvas(activeSelection);
             if (selectionBounds) {
                 const adjustment = calculateAspectRatioAdjustment(

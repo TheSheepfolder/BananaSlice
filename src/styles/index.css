@@ -630,6 +630,22 @@ button:focus-visible {
     border-color: var(--accent-primary);
 }
 
+.toggle-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-row input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent-primary);
+}
+
 /* Range Slider */
 .slider {
     -webkit-appearance: none;

@@ -61,7 +61,11 @@ function App() {
     const { activeSelection } = useSelectionStore();
     const { setBaseLayer } = useLayerStore();
     const { undo: handleUndo, redo: handleRedo, canUndo, canRedo, reset: resetHistory } = useHistoryStore();
-    const { setDefaultModel: setModel } = useSettingsStore();
+    const {
+        setDefaultModel: setModel,
+        useFullImageContext,
+        setUseFullImageContext,
+    } = useSettingsStore();
     const { recentFiles } = useRecentFilesStore();
 
     // Custom hooks
@@ -78,6 +82,7 @@ function App() {
     } = useGeneration({
         prompt,
         referenceImages,
+        useFullImageContext,
         onOpenSettings: () => setSettingsOpen(true),
     });
 
@@ -354,6 +359,15 @@ function App() {
                                     <option value="nano-banana">Nano Banana (Fast)</option>
                                 </select>
                             </div>
+
+                            <label className="toggle-row" title="When enabled, generation uses the full image as context while applying edits only inside your selection mask.">
+                                <input
+                                    type="checkbox"
+                                    checked={useFullImageContext}
+                                    onChange={(e) => setUseFullImageContext(e.target.checked)}
+                                />
+                                <span>Use full image context</span>
+                            </label>
 
                             <ReferenceImages
                                 images={referenceImages}

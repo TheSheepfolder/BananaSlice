@@ -182,7 +182,8 @@ export async function cropImageToBounds(
 // Create inpainting mask: white = edit area, black = keep for context
 export async function createInpaintingMask(
     bounds: SelectionBounds,
-    polygonPoints?: PolygonPoint[]
+    polygonPoints?: PolygonPoint[],
+    selectionBounds?: SelectionBounds
 ): Promise<string> {
     return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
@@ -203,6 +204,16 @@ export async function createInpaintingMask(
             ctx.fillStyle = '#FFFFFF';
             drawPolygonPath(ctx, polygonPoints, bounds);
             ctx.fill();
+        } else if (selectionBounds) {
+            // Rectangle selection inside a larger context bounds
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, bounds.width, bounds.height);
+
+            const relativeX = selectionBounds.x - bounds.x;
+            const relativeY = selectionBounds.y - bounds.y;
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(relativeX, relativeY, selectionBounds.width, selectionBounds.height);
         } else {
             // Rectangle: full white (edit everything)
             ctx.fillStyle = '#FFFFFF';
@@ -293,24 +304,34 @@ export async function processSelectionForAPI(
     imageFormat: string,
     imageTransform: ImageTransform,
     imageWidth: number,
-    imageHeight: number
+    imageHeight: number,
+    useFullImageContext: boolean = false
 ): Promise<ProcessedSelection | null> {
     const canvasBounds = getSelectionBoundsCanvas(selectionObject);
     if (!canvasBounds || canvasBounds.width <= 0 || canvasBounds.height <= 0) {
         return null;
     }
 
-    const imageBounds = transformToImageSpace(
+    const selectionImageBounds = transformToImageSpace(
         canvasBounds,
         imageTransform,
         imageWidth,
         imageHeight
     );
 
-    if (imageBounds.width <= 0 || imageBounds.height <= 0) {
+    if (selectionImageBounds.width <= 0 || selectionImageBounds.height <= 0) {
         console.error('Selection is outside image bounds');
         return null;
     }
+
+    const imageBounds: SelectionBounds = useFullImageContext
+        ? {
+            x: 0,
+            y: 0,
+            width: imageWidth,
+            height: imageHeight,
+        }
+        : selectionImageBounds;
 
     // Extract polygon points for lasso selections
     const canvasPolygonPoints = extractPolygonPoints(selectionObject);
@@ -328,7 +349,11 @@ export async function processSelectionForAPI(
     );
 
     // Create inpainting mask: white = edit area, black = context for blending
-    const maskBase64 = await createInpaintingMask(imageBounds, imagePolygonPoints);
+    const maskBase64 = await createInpaintingMask(
+        imageBounds,
+        imagePolygonPoints,
+        useFullImageContext && !imagePolygonPoints ? selectionImageBounds : undefined
+    );
 
     // For lasso, also create an alpha mask to apply to the returned result
     let polygonMaskBase64: string | undefined;

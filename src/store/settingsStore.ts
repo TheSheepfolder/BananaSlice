@@ -12,9 +12,13 @@ interface SettingsState {
     // Default model
     defaultModel: AIModel;
 
+    // Generation context behavior
+    useFullImageContext: boolean;
+
     // Actions
     setApiKeySet: (set: boolean) => void;
     setDefaultModel: (model: AIModel) => void;
+    setUseFullImageContext: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -23,16 +27,19 @@ export const useSettingsStore = create<SettingsState>()(
             // Initial state
             apiKeySet: false,
             defaultModel: 'nano-banana-pro',
+            useFullImageContext: false,
 
             // Actions
             setApiKeySet: (apiKeySet) => set({ apiKeySet }),
             setDefaultModel: (defaultModel) => set({ defaultModel }),
+            setUseFullImageContext: (useFullImageContext) => set({ useFullImageContext }),
         }),
         {
             name: 'bananaslice-settings',
             partialize: (state) => ({
                 defaultModel: state.defaultModel,
                 apiKeySet: state.apiKeySet,
+                useFullImageContext: state.useFullImageContext,
             }),
         }
     )
