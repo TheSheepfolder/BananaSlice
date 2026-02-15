@@ -646,6 +646,27 @@ button:focus-visible {
     accent-color: var(--accent-primary);
 }
 
+.resolution-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.resolution-option {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.resolution-option input[type="radio"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent-primary);
+}
+
 /* Range Slider */
 .slider {
     -webkit-appearance: none;

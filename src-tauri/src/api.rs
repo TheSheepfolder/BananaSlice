@@ -78,8 +78,10 @@ struct GenerationConfig {
 
 #[derive(Debug, Serialize)]
 struct ImageConfig {
-    #[serde(rename = "aspectRatio")]
-    aspect_ratio: String,
+    #[serde(rename = "aspectRatio", skip_serializing_if = "Option::is_none")]
+    aspect_ratio: Option<String>,
+    #[serde(rename = "imageSize", skip_serializing_if = "Option::is_none")]
+    image_size: Option<String>,
 }
 
 /// Get image dimensions from base64 PNG data
@@ -197,6 +199,7 @@ impl NanoBananaClient {
     /// * `image_base64` - The cropped source image as base64
     /// * `mask_base64` - The mask image as base64 (white = generate, black = keep)
     /// * `reference_images` - Optional reference images to guide generation
+    /// * `image_size` - Optional output image size (1K, 2K, 4K), used by NanoBananaPro
     pub async fn generate_fill(
         &self,
         model: Model,
@@ -204,6 +207,7 @@ impl NanoBananaClient {
         image_base64: &str,
         mask_base64: &str,
         reference_images: &[&str],
+        image_size: Option<&str>,
     ) -> Result<String, ApiError> {
         let model_name = model.to_gemini_model();
         let url = format!(
@@ -262,15 +266,28 @@ impl NanoBananaClient {
         // Add prompt text
         parts.push(Part::Text { text: prompt_text });
 
-        // Only set explicit aspect ratio when there are reference images
-        // (without refs, the API correctly infers from the single input image)
-        let image_config = if !reference_images.is_empty() {
-            get_image_dimensions(image_base64)
-                .map(|(w, h)| {
-                    let ratio = calculate_aspect_ratio(w, h);
-                    log::info!("Reference images present - setting aspectRatio to: {}", ratio);
-                    ImageConfig { aspect_ratio: ratio }
-                })
+        // Set aspectRatio only when reference images are present (API behavior works best this way)
+        let aspect_ratio = if !reference_images.is_empty() {
+            get_image_dimensions(image_base64).map(|(w, h)| {
+                let ratio = calculate_aspect_ratio(w, h);
+                log::info!("Reference images present - setting aspectRatio to: {}", ratio);
+                ratio
+            })
+        } else {
+            None
+        };
+
+        // imageSize is supported for Nano Banana Pro only
+        let image_size = match model {
+            Model::NanoBananaPro => image_size.map(str::to_string),
+            Model::NanoBanana => None,
+        };
+
+        let image_config = if aspect_ratio.is_some() || image_size.is_some() {
+            Some(ImageConfig {
+                aspect_ratio,
+                image_size,
+            })
         } else {
             None
         };

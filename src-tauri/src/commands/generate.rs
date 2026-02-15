@@ -16,6 +16,8 @@ pub struct GenerateRequest {
     pub mask_base64: String,
     #[serde(default)]
     pub reference_images: Vec<String>, // Optional reference images as base64
+    #[serde(default)]
+    pub image_size: Option<String>, // Optional output resolution: 1K, 2K, 4K
 }
 
 #[derive(Debug, Serialize)]
@@ -79,7 +81,14 @@ pub async fn generate_fill(request: GenerateRequest) -> GenerateResponse {
     let ref_images: Vec<&str> = request.reference_images.iter().map(|s| s.as_str()).collect();
     
     match client
-        .generate_fill(model, &request.prompt, &request.image_base64, &request.mask_base64, &ref_images)
+        .generate_fill(
+            model,
+            &request.prompt,
+            &request.image_base64,
+            &request.mask_base64,
+            &ref_images,
+            request.image_size.as_deref(),
+        )
         .await
     {
         Ok(image_base64) => {

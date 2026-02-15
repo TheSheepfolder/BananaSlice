@@ -35,7 +35,7 @@ import {
 } from './hooks';
 
 // Types and Styles
-import type { AIModel } from './types';
+import type { AIModel, ImageSize } from './types';
 import './styles/index.css';
 
 // Declare version constant from Vite define
@@ -63,6 +63,8 @@ function App() {
     const { undo: handleUndo, redo: handleRedo, canUndo, canRedo, reset: resetHistory } = useHistoryStore();
     const {
         setDefaultModel: setModel,
+        defaultImageSize: imageSize,
+        setDefaultImageSize: setImageSize,
         useFullImageContext,
         setUseFullImageContext,
     } = useSettingsStore();
@@ -82,6 +84,7 @@ function App() {
     } = useGeneration({
         prompt,
         referenceImages,
+        imageSize,
         useFullImageContext,
         onOpenSettings: () => setSettingsOpen(true),
     });
@@ -359,6 +362,26 @@ function App() {
                                     <option value="nano-banana">Nano Banana (Fast)</option>
                                 </select>
                             </div>
+
+                            {model === 'nano-banana-pro' && (
+                                <div className="model-selector">
+                                    <label className="input-label">Resolution</label>
+                                    <div className="resolution-options" role="radiogroup" aria-label="Resolution">
+                                        {(['1K', '2K', '4K'] as const).map((size) => (
+                                            <label key={size} className="resolution-option">
+                                                <input
+                                                    type="radio"
+                                                    name="image-size"
+                                                    value={size}
+                                                    checked={imageSize === size}
+                                                    onChange={(e) => setImageSize(e.target.value as ImageSize)}
+                                                />
+                                                <span>{size}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <label className="toggle-row" title="When enabled, generation uses the full image as context while applying edits only inside your selection mask.">
                                 <input

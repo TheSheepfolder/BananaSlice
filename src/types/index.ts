@@ -5,6 +5,7 @@ export type Tool = 'move' | 'lasso' | 'rectangle' | 'shape-rect' | 'shape-ellips
 
 // AI Model types
 export type AIModel = 'nano-banana-pro' | 'nano-banana';
+export type ImageSize = '1K' | '2K' | '4K';
 
 // Image data from backend
 export interface ImageData {
@@ -62,6 +63,7 @@ export interface GenerationRequest {
     prompt: string;
     imageBase64: string;
     maskBase64: string;
+    imageSize?: ImageSize;
 }
 
 // Canvas state

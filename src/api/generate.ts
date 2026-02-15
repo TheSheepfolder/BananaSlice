@@ -1,6 +1,6 @@
 // API bindings for Tauri commands
 import { invoke } from '@tauri-apps/api/core';
-import type { AIModel } from '../types';
+import type { AIModel, ImageSize } from '../types';
 
 export interface GenerateRequest {
     model: string;
@@ -8,6 +8,7 @@ export interface GenerateRequest {
     image_base64: string;
     mask_base64: string;
     reference_images?: string[]; // Optional reference images as base64
+    image_size?: ImageSize;
 }
 
 export interface GenerateResponse {
@@ -45,7 +46,8 @@ export async function generateFill(
     prompt: string,
     imageBase64: string,
     maskBase64: string,
-    referenceImages: string[] = []
+    referenceImages: string[] = [],
+    imageSize?: ImageSize
 ): Promise<GenerateResponse> {
     const request: GenerateRequest = {
         model,
@@ -53,6 +55,7 @@ export async function generateFill(
         image_base64: imageBase64,
         mask_base64: maskBase64,
         reference_images: referenceImages,
+        image_size: imageSize,
     };
 
     return invoke<GenerateResponse>('generate_fill', { request });

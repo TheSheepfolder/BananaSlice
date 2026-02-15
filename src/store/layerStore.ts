@@ -200,7 +200,7 @@ export const useLayerStore = create<LayerState>((set, get) => ({
     setFeatherRadius: (id, radius) => {
         set((state) => ({
             layers: state.layers.map((l) =>
-                l.id === id ? { ...l, featherRadius: Math.max(0, Math.min(50, radius)) } : l
+                l.id === id ? { ...l, featherRadius: Math.max(0, Math.min(100, radius)) } : l
             ),
         }));
     },

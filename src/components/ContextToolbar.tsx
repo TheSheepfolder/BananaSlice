@@ -79,7 +79,7 @@ export function ContextToolbar({ layerBounds, layerId }: ContextToolbarProps) {
                         type="range"
                         className="context-toolbar-slider"
                         min="0"
-                        max="50"
+                        max="100"
                         value={featherValue}
                         onChange={handleFeatherChange}
                         onInput={handleFeatherChange}

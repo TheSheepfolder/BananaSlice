@@ -26,6 +26,7 @@ interface AspectRatioDialogState {
 interface UseGenerationOptions {
     prompt: string;
     referenceImages: string[];
+    imageSize: '1K' | '2K' | '4K';
     useFullImageContext: boolean;
     onOpenSettings: () => void;
 }
@@ -37,7 +38,7 @@ const generationStages = [
     'Applying result',
 ];
 
-export function useGeneration({ prompt, referenceImages, useFullImageContext, onOpenSettings }: UseGenerationOptions) {
+export function useGeneration({ prompt, referenceImages, imageSize, useFullImageContext, onOpenSettings }: UseGenerationOptions) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [generationStage, setGenerationStage] = useState(0);
     const [error, setError] = useState<string | null>(null);
@@ -110,7 +111,8 @@ export function useGeneration({ prompt, referenceImages, useFullImageContext, on
                 prompt,
                 processed.croppedImageBase64,
                 processed.maskBase64,
-                referenceImages.filter(img => img !== '')
+                referenceImages.filter(img => img !== ''),
+                imageSize
             );
 
             if (!genResult.success || !genResult.image_base64) {
